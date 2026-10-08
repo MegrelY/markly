@@ -7,6 +7,7 @@ it sends no telemetry.
 
 ![Markly in light mode](docs/screenshot-light.png)
 ![Markly in dark mode](docs/screenshot-dark.png)
+![The Copy menu: copy the file path or its Markdown source](docs/screenshot-copy-menu.png)
 
 ## Download
 
@@ -31,6 +32,8 @@ From the [latest release](../../releases/latest):
 - Light and dark themes that follow the system, plus a toggle (System → Light → Dark)
 - Automatic right-to-left layout for Hebrew and Arabic paragraphs
 - Table-of-contents sidebar, find, zoom, print / Save as PDF
+- Copy button next to Find: **Copy path** copies the file's full path, and **Copy content** copies the raw
+  Markdown source exactly as it is on disk, not the rendered page. Ctrl+Shift+C copies the path.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
 - Relative images and links resolve from the document's folder. Links to `.md` files open in Markly
   (Alt+← goes back), and web links open in your default browser.
@@ -46,6 +49,7 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 |---|---|
 | Open file | Ctrl+O |
 | Find / next / previous | Ctrl+F, Enter / F3, Shift+Enter / Shift+F3 |
+| Copy file path | Ctrl+Shift+C |
 | Table of contents | Ctrl+\ |
 | Zoom in / out / reset | Ctrl + = / Ctrl + - / Ctrl + 0, or Ctrl + mouse wheel |
 | Print / Save as PDF | Ctrl+P |

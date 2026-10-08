@@ -9,6 +9,9 @@ const p = await b.newPage();
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 await p.setViewport({ width: 1200, height: 800 });
 const base = `http://localhost:${s.address().port}/dist-web/index.html`;
+await b.defaultBrowserContext().overridePermissions(`http://localhost:${s.address().port}`, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write']);
+const clip = () => p.evaluate(() => navigator.clipboard.readText());
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = [];
 const check = (name, ok, extra = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${name} ${extra}`);
 
@@ -16,6 +19,7 @@ const check = (name, ok, extra = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${
 await p.goto(base, { waitUntil: 'load' });
 await p.waitForSelector('#mk-welcome:not([hidden])');
 check('welcome screen when no file', true);
+check('copy disabled without a file', await p.$eval('#btn-copy', (e) => e.disabled && getComputedStyle(e).pointerEvents === 'none'));
 
 await p.goto(base + '?file=/samples/showcase.md', { waitUntil: 'load' });
 await p.waitForSelector('body[data-ready="1"]');
@@ -80,6 +84,36 @@ check('relative md link opens', true, await p.title());
 await p.keyboard.down('Alt'); await p.keyboard.press('ArrowLeft'); await p.keyboard.up('Alt');
 await p.waitForFunction(() => document.title.startsWith('showcase.md'));
 check('alt+left goes back', true);
+
+// copy path / content
+check('copy enabled with a file', await p.$eval('#btn-copy', (e) => !e.disabled));
+check('copy button next to find', await p.$eval('#btn-find', (e) => e.nextElementSibling?.querySelector('#btn-copy') !== null));
+await p.click('#btn-copy');
+check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && e.querySelectorAll('.copy-item').length === 2));
+check('copy menu shows path', (await p.$eval('#copy-path-sub', (e) => e.textContent)) === '/samples/showcase.md');
+await p.click('#copy-path');
+await sleep(100);
+check('copy path', (await clip()) === '/samples/showcase.md', JSON.stringify(await clip()));
+check('copy menu closes', await p.$eval('#copy-menu', (e) => e.hidden));
+check('copy confirmation', await p.evaluate(() => document.getElementById('btn-copy').classList.contains('done') && document.getElementById('mk-toast').textContent === 'Copied path'));
+await p.evaluate(() => navigator.clipboard.writeText('-'));
+await p.click('#btn-copy');
+await p.click('#copy-content');
+await sleep(100);
+const raw = fs.readFileSync(path.join(ROOT, 'samples/showcase.md'), 'utf8');
+const got = await clip();
+check('copy content is the raw markdown', got === raw, `${got.length}/${raw.length} chars`);
+await p.evaluate(() => navigator.clipboard.writeText('-'));
+await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyC'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
+await sleep(100);
+check('ctrl+shift+c copies path', (await clip()) === '/samples/showcase.md');
+await p.click('#btn-copy');
+await p.keyboard.press('Escape');
+check('escape closes copy menu', await p.$eval('#copy-menu', (e) => e.hidden));
+await p.click('#btn-copy');
+await p.click('#btn-recent');
+check('recent closes copy menu', await p.$eval('#copy-menu', (e) => e.hidden));
+await p.click('#btn-recent');
 
 // recent menu
 await p.click('#btn-recent');

@@ -25,6 +25,7 @@ const UNSAFE_EXT = new RegExp('\\.(' + [
 // macOS shows ⌘ where Windows and Linux show Ctrl (the shortcuts accept either key everywhere).
 const IS_MAC = /^Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent);
 const THEME_KEY = IS_MAC ? '⇧⌘L' : 'Ctrl+Shift+L';
+const COPY_PATH_KEY = IS_MAC ? '⇧⌘C' : 'Ctrl+Shift+C';
 if (IS_MAC) {
   document.querySelectorAll('[title*="Ctrl+"]').forEach((el) => { el.title = el.title.replace(/Ctrl\+/g, '⌘'); });
   document.querySelectorAll('kbd').forEach((el) => { if (el.textContent === 'Ctrl') el.textContent = '⌘'; });
@@ -173,11 +174,70 @@ document.addEventListener('click', (e) => {
   if (e.target.closest('#recent-clear')) { LS.set('recent', []); renderRecentMenu(); renderWelcomeRecent(); return; }
   if (!e.target.closest('.menu-wrap')) closeMenus();
 });
-function closeMenus() { $('recent-menu').hidden = true; }
+function closeMenus() {
+  $('recent-menu').hidden = true;
+  copyMenu.hidden = true;
+  copyBtn.setAttribute('aria-expanded', 'false');
+}
+
+// ---------------------------------------------------------------- copy path / content
+const copyBtn = $('btn-copy');
+const copyMenu = $('copy-menu');
+$('copy-path-key').textContent = COPY_PATH_KEY;
+function countLines(text) {
+  if (!text) return 0;
+  let n = 1;
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) n++;
+  return text.endsWith('\n') ? n - 1 : n;
+}
+function toggleCopyMenu() {
+  const open = copyMenu.hidden && !!current;
+  closeMenus();
+  if (!open) return;
+  const lines = countLines(current.content);
+  $('copy-path-sub').textContent = current.path;
+  $('copy-content-sub').textContent = `Markdown source · ${lines.toLocaleString()} ${lines === 1 ? 'line' : 'lines'}`;
+  copyMenu.hidden = false;
+  copyBtn.setAttribute('aria-expanded', 'true');
+}
+async function writeClipboard(text) {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    // Fallback for web views that refuse the async clipboard API.
+    const prev = document.activeElement;
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.readOnly = true;
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;';
+    document.body.appendChild(ta); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch { /* unsupported */ }
+    ta.remove();
+    if (prev && prev.focus) prev.focus({ preventScroll: true });
+    return ok;
+  }
+}
+let copyDoneTimer;
+// kind 'path': the file's full path as the OS reports it (native separators);
+// kind 'content': the Markdown source as read from disk (kept current by auto-reload).
+async function copyFromDoc(kind) {
+  closeMenus();
+  if (!current) return;
+  const ok = await writeClipboard(kind === 'path' ? current.path : current.content);
+  if (!ok) { toast("Couldn't copy to the clipboard"); return; }
+  copyBtn.classList.add('done');
+  clearTimeout(copyDoneTimer);
+  copyDoneTimer = setTimeout(() => copyBtn.classList.remove('done'), 1400);
+  toast(kind === 'path' ? 'Copied path' : 'Copied Markdown source', 1600);
+}
+copyBtn.onclick = (e) => { e.stopPropagation(); toggleCopyMenu(); };
+$('copy-path').onclick = () => copyFromDoc('path');
+$('copy-content').onclick = () => copyFromDoc('content');
 
 // ---------------------------------------------------------------- loading & rendering
 function showWelcome() {
   current = null;
+  copyBtn.disabled = true;
+  closeMenus();
   content.innerHTML = '';
   welcome.hidden = false;
   root.classList.add('no-doc');
@@ -213,6 +273,7 @@ async function openFile(path, opts = {}) {
   const prevTop = scroller.scrollTop;
   const samePath = current && current.path === doc.path;
   current = doc;
+  copyBtn.disabled = false;
 
   delete document.body.dataset.ready;
   content.innerHTML = rendered.html;
@@ -396,7 +457,12 @@ $('btn-zoom-out').onclick = () => stepZoom(-1);
 $('btn-zoom-reset').onclick = () => setZoom(1);
 $('btn-print').onclick = () => window.print();
 $('btn-theme').onclick = cycleTheme;
-$('btn-recent').onclick = (e) => { e.stopPropagation(); const m = $('recent-menu'); if (m.hidden) renderRecentMenu(); m.hidden = !m.hidden; };
+$('btn-recent').onclick = (e) => {
+  e.stopPropagation();
+  const m = $('recent-menu'); const open = m.hidden;
+  closeMenus();
+  if (open) { renderRecentMenu(); m.hidden = false; }
+};
 
 // ---------------------------------------------------------------- keyboard
 document.addEventListener('keydown', (e) => {
@@ -404,6 +470,7 @@ document.addEventListener('keydown', (e) => {
   const k = e.key.toLowerCase();
   let handled = true;
   if (mod && !e.shiftKey && k === 'o') pickAndOpen();
+  else if (mod && e.shiftKey && !e.altKey && k === 'c') copyFromDoc('path');
   else if (mod && k === 'f') openFind();
   else if (mod && k === 'p') window.print();
   else if (mod && (k === '=' || k === '+' || e.code === 'NumpadAdd')) stepZoom(1);

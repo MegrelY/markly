@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.2.0 — Unreleased
+
+### Added
+- **Copy** button in the header, next to Find. It opens a small menu:
+  - **Copy path** copies the open file's full path with the OS's own separators. Ctrl+Shift+C does the
+    same (⇧⌘C on macOS).
+  - **Copy content** copies the file's raw Markdown source as read from disk, not the rendered HTML.
+    Line endings, tabs and Unicode are kept as they are; a UTF-8/UTF-16 byte-order mark is not included.
+
+  A checkmark and a short "Copied" toast confirm the copy. The button is disabled when no file is open.
+
 ## 1.1.0 — 2026-10-08
 
 ### Added

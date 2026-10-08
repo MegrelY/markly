@@ -29,6 +29,23 @@
       <button class="icon-btn" id="btn-find" title="Find (Ctrl+F)" aria-label="Find">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></svg>
       </button>
+      <div class="menu-wrap">
+        <button class="icon-btn" id="btn-copy" title="Copy path or content" aria-label="Copy" aria-haspopup="menu" aria-expanded="false" disabled>
+          <svg class="ic-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6.2A2.2 2.2 0 0 0 13.3 4H6.2A2.2 2.2 0 0 0 4 6.2v7.1a2.2 2.2 0 0 0 2.2 2.2h2.3"/></svg>
+          <svg class="ic-done" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>
+        </button>
+        <div class="menu menu-copy" id="copy-menu" role="menu" hidden>
+          <button class="copy-item" id="copy-path" role="menuitem">
+            <svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/></svg>
+            <span class="ci-text"><span class="ci-label">Copy path</span><span class="ci-sub" id="copy-path-sub"></span></span>
+            <span class="ci-key" id="copy-path-key">Ctrl+Shift+C</span>
+          </button>
+          <button class="copy-item" id="copy-content" role="menuitem">
+            <svg viewBox="0 0 24 24"><path d="M5 6h14M5 10h14M5 14h9M5 18h6"/></svg>
+            <span class="ci-text"><span class="ci-label">Copy content</span><span class="ci-sub" id="copy-content-sub">Markdown source</span></span>
+          </button>
+        </div>
+      </div>
       <div class="zoom">
         <button class="icon-btn" id="btn-zoom-out" title="Zoom out (Ctrl+-)" aria-label="Zoom out"><svg viewBox="0 0 24 24"><path d="M6 12h12"/></svg></button>
         <button class="zoom-label" id="btn-zoom-reset" title="Reset zoom (Ctrl+0)">100%</button>

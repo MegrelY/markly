@@ -134,7 +134,7 @@ html[data-pref='light'] #btn-theme .ic-light, html[data-pref='dark'] #btn-theme 
 #btn-theme .ic-system path { stroke: none; }
 html.toc-hidden #btn-toc, html:not(.toc-hidden):not(.toc-empty) #btn-toc { color: var(--muted); }
 html:not(.toc-hidden):not(.toc-empty):not(.no-doc) #btn-toc { background: var(--accent-soft); color: var(--accent); }
-html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-print { opacity: .35; pointer-events: none; }
+html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-copy, html.no-doc #btn-print, #btn-copy:disabled { opacity: .35; pointer-events: none; }
 
 .menu-wrap { position: relative; }
 .menu {
@@ -149,6 +149,19 @@ html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-print { opacity: .
 .ri-dir { font-size: 11.5px; color: var(--faint); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu-clear { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--border-soft); margin-top: 4px; padding: 8px 10px 4px; background: none; color: var(--muted); font-size: 12px; cursor: pointer; }
 .menu-clear:hover { color: var(--danger); }
+.menu-copy { left: auto; right: 0; min-width: 260px; max-width: 360px; }
+.copy-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; cursor: pointer; color: var(--muted); }
+.copy-item:hover, .copy-item:focus-visible { background: var(--surface-2); color: var(--text-strong); outline: none; }
+.copy-item > svg { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ci-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.ci-label { font-size: 13px; font-weight: 550; color: var(--text-strong); }
+.ci-sub { font-size: 11.5px; color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; unicode-bidi: plaintext; }
+.ci-key { flex: 0 0 auto; font-size: 11.5px; color: var(--faint); font-variant-numeric: tabular-nums; }
+#btn-copy .ic-done { display: none; }
+#btn-copy.done { color: var(--accent); }
+#btn-copy.done .ic-copy { display: none; }
+#btn-copy.done .ic-done { display: block; }
+#btn-copy[aria-expanded='true'] { background: var(--surface-2); color: var(--text-strong); }
 
 #mk-findbar {
   position: absolute; top: calc(var(--bar-h) + 8px); right: 18px; z-index: 15;

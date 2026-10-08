@@ -33,6 +33,8 @@ async function shot(theme, name, opts = {}) {
   await page.evaluate(() => document.fonts.ready);
   if (opts.scrollTo) await page.evaluate((id) => { document.getElementById(id)?.scrollIntoView({ block: 'start' }); }, opts.scrollTo);
   if (opts.before) await opts.before(page);
+  if (opts.click) { await page.click(opts.click); }              // e.g. open a menu
+  if (opts.hover) { await page.hover(opts.hover); }
   await new Promise((r) => setTimeout(r, 400));
   const out = path.join(outDir, name);
   if (opts.full) {
@@ -49,6 +51,8 @@ async function shot(theme, name, opts = {}) {
 const jobs = JSON.parse(process.env.SHOTS || 'null') || [
   ['light', 'markly-light.png', {}],
   ['dark', 'markly-dark.png', { scrollTo: 'math' }],
+  ['light', 'markly-copy-light.png', { click: '#btn-copy', hover: '#copy-path' }],
+  ['dark', 'markly-copy-dark.png', { click: '#btn-copy', hover: '#copy-path' }],
 ];
 for (const [t, n, o] of jobs) await shot(t, n, o);
 await browser.close();
