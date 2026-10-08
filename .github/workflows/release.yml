@@ -1,32 +1,91 @@
 name: Release
 
 # Push a tag like v1.1.0 to build Windows, Linux and macOS packages and publish a GitHub release.
+# To rebuild an existing tag (assets with the same names are replaced):
+#   gh workflow run release.yml --ref main -f tag=v1.1.0
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build and release (e.g. v1.1.0)'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+env:
+  # The tag being released: the dispatch input, or the pushed tag.
+  TAG: ${{ inputs.tag || github.ref_name }}
+
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   create-release:
     runs-on: ubuntu-latest
     outputs:
-      release_id: ${{ steps.create.outputs.id }}
+      release_id: ${{ steps.release.outputs.id }}
     steps:
-      - name: Create draft release
-        id: create
+      - name: Find or create the release
+        id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --title "Markly $TAG" \
-            --notes "See [CHANGELOG.md](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/CHANGELOG.md). The binaries are not code-signed; see the README for first-run instructions on Windows and macOS."
-          id=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq ".[] | select(.tag_name == \"$TAG\") | .id" | head -n1)
+          set -euo pipefail
+          if ! gh api "repos/$REPO/git/ref/tags/$TAG" --silent; then
+            echo "::error::Tag $TAG does not exist in $REPO"
+            exit 1
+          fi
+
+          is_id() { [[ "${1:-}" =~ ^[0-9]+$ ]]; }
+
+          # Published releases are found directly by tag; drafts only show up in the list.
+          find_release() {
+            local id
+            if id=$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.id' 2>/dev/null) && is_id "$id"; then
+              echo "$id"; return 0
+            fi
+            id=$(gh api --paginate "repos/$REPO/releases?per_page=100" \
+                   --jq ".[] | select(.tag_name == \"$TAG\") | .id" 2>/dev/null | head -n1 || true)
+            if is_id "$id"; then echo "$id"; return 0; fi
+            return 1
+          }
+
+          id=""
+          for attempt in 1 2 3; do
+            if id=$(find_release); then break; fi
+            id=""
+            [ "$attempt" -lt 3 ] && sleep 5
+          done
+
+          if [ -n "$id" ]; then
+            echo "Reusing existing release $id for $TAG"
+          else
+            notes="See [CHANGELOG.md](https://github.com/$REPO/blob/$TAG/CHANGELOG.md). The binaries are not code-signed; see the README for first-run instructions on Windows and macOS."
+            if id=$(gh api -X POST "repos/$REPO/releases" \
+                      -f tag_name="$TAG" -f name="Markly $TAG" -f body="$notes" \
+                      -F draft=true --jq '.id') && is_id "$id"; then
+              echo "Created draft release $id for $TAG"
+            else
+              # Creation can fail if a release appeared in the meantime; look it up once more.
+              id=""
+              for attempt in 1 2 3 4 5; do
+                sleep 5
+                if id=$(find_release); then break; fi
+                id=""
+              done
+            fi
+          fi
+
+          if ! is_id "$id"; then
+            echo "::error::Could not find or create a release for $TAG"
+            exit 1
+          fi
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
@@ -47,6 +106,17 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.TAG }}
+
+      - name: Check the tag matches the app version
+        shell: bash
+        run: |
+          ver=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          if [ "v$ver" != "$TAG" ]; then
+            echo "::error::Tag $TAG does not match version $ver in src-tauri/tauri.conf.json"
+            exit 1
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -69,6 +139,8 @@ jobs:
 
       - run: npm ci
 
+      # Builds the bundles and uploads them to the release. tauri-action deletes an existing
+      # asset with the same name before uploading, so rebuilding a tag replaces its files.
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -81,7 +153,6 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
         run: |
           ver=$(node -p "require('./src-tauri/tauri.conf.json').version")
           cp src-tauri/target/release/Markly.exe "Markly_${ver}_x64_portable.exe"
@@ -91,8 +162,10 @@ jobs:
     needs: [create-release, build]
     runs-on: ubuntu-latest
     steps:
+      # By id, because drafts cannot be looked up by tag. A no-op for an already published release.
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+        run: gh api -X PATCH "repos/$REPO/releases/$RELEASE_ID" -F draft=false --jq '"Published \(.html_url) (draft=\(.draft))"'

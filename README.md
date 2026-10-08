@@ -153,6 +153,8 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appi
 **CI / releases:** `.github/workflows/ci.yml` builds every push and pull request on all three
 platforms. Pushing a tag such as `v1.1.0` runs `.github/workflows/release.yml`, which creates a GitHub
 release with the Windows installer and portable exe, the Linux deb/rpm/AppImage and the macOS dmg.
+To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.1.0`. It reuses
+that tag's release, whether it is a draft or published, and replaces assets that have the same names.
 
 Frontend only: `npm run build` (writes `dist-web/`). Then:
 - `node tools/screenshot.mjs` renders the sample in headless Chrome.
