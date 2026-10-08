@@ -15,7 +15,20 @@ const LS = {
 };
 
 // Links to these are never launched from a document (they could run code).
-const UNSAFE_EXT = /\.(exe|com|bat|cmd|msi|msix|msp|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|scr|pif|cpl|msc|jar|lnk|reg|url|appx|appref-ms|application|gadget|inf|scf|sys|dll|ocx|iso|img|vhd|vhdx)$/i;
+// Windows, then macOS (bundles, Terminal scripts, installers), then Linux (launchers, scripts, packages).
+const UNSAFE_EXT = new RegExp('\\.(' + [
+  'exe|com|bat|cmd|msi|msix|msp|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|scr|pif|cpl|msc|jar|lnk|reg|url|appx|appref-ms|application|gadget|inf|scf|sys|dll|ocx|iso|img|vhd|vhdx',
+  'app|command|tool|terminal|workflow|action|pkg|mpkg|dmg|scpt|scptd|applescript|webloc|inetloc|fileloc|dylib|kext|prefpane|saver',
+  'sh|bash|zsh|csh|ksh|fish|desktop|appimage|run|deb|rpm|flatpakref|snap|so|bin|elf|py|pl|rb',
+].join('|') + ')$', 'i');
+
+// macOS shows ⌘ where Windows and Linux show Ctrl (the shortcuts accept either key everywhere).
+const IS_MAC = /^Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent);
+const THEME_KEY = IS_MAC ? '⇧⌘L' : 'Ctrl+Shift+L';
+if (IS_MAC) {
+  document.querySelectorAll('[title*="Ctrl+"]').forEach((el) => { el.title = el.title.replace(/Ctrl\+/g, '⌘'); });
+  document.querySelectorAll('kbd').forEach((el) => { if (el.textContent === 'Ctrl') el.textContent = '⌘'; });
+}
 
 let current = null;               // { path, name, dir }
 const back = [], fwd = [];
@@ -45,7 +58,7 @@ function applyTheme(rerender = true) {
   const before = root.dataset.theme;
   root.dataset.theme = isDark() ? 'dark' : 'light';
   root.dataset.pref = themePref;
-  $('btn-theme').title = `Theme: ${themePref[0].toUpperCase() + themePref.slice(1)} (Ctrl+Shift+L)`;
+  $('btn-theme').title = `Theme: ${themePref[0].toUpperCase() + themePref.slice(1)} (${THEME_KEY})`;
   if (rerender && before !== root.dataset.theme) refreshMermaid();
 }
 function cycleTheme() {
@@ -403,6 +416,8 @@ document.addEventListener('keydown', (e) => {
   else if (e.key === 'F3') { if (!findState.open) openFind(); else gotoMatch(findState.idx + (e.shiftKey ? -1 : 1)); }
   else if (e.altKey && e.key === 'ArrowLeft') goBack();
   else if (e.altKey && e.key === 'ArrowRight') goForward();
+  else if (IS_MAC && e.metaKey && e.key === '[') goBack();
+  else if (IS_MAC && e.metaKey && e.key === ']') goForward();
   else if (e.key === 'BrowserBack') goBack();
   else if (e.key === 'BrowserForward') goForward();
   else if (e.key === 'Escape') { if (findState.open) closeFind(); else closeMenus(); }
@@ -444,6 +459,10 @@ applyTheme(false);
 setZoom(zoom);
 if (themePref !== 'system') host.setTheme(themePref);
 (async () => {
+  // macOS: files opened while the app is running (Finder / "Open With") arrive as events.
+  // Listen before asking for the start-up file so a request arriving in between is not lost.
+  // (Windows and Linux open each file in its own window via the command line.)
+  if (IS_MAC) { try { await host.onOpenFile((path) => { if (path) openFile(path); }); } catch { /* browser */ } }
   let initial = null;
   try { initial = await host.initialFile(); } catch { /* none */ }
   if (initial) { if (!(await openFile(initial))) showWelcome(); }

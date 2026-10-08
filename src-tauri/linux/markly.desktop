@@ -1,0 +1,14 @@
+[Desktop Entry]
+Categories={{categories}}
+{{#if comment}}
+Comment={{comment}}
+{{/if}}
+Exec={{exec}} %f
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name={{name}}
+GenericName=Markdown Viewer
+Keywords=markdown;md;viewer;reader;
+Terminal=false
+Type=Application
+MimeType=text/markdown;text/x-markdown;

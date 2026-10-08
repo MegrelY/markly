@@ -1,7 +1,9 @@
-// Markly: a small native shell (Tauri + system WebView2) around a Markdown renderer.
+// Markly: a small native shell (Tauri + the system webview: WebView2 on Windows, WKWebView on
+// macOS, WebKitGTK on Linux) around a Markdown renderer.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -14,7 +16,10 @@ const MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Default)]
 struct AppState {
+    /// File to show at start-up (command line, or a macOS "open document" event).
     initial: Mutex<Option<String>>,
+    /// Set once the page has asked for `initial`; later open requests are sent as events.
+    frontend_ready: AtomicBool,
     watcher: Mutex<Option<RecommendedWatcher>>,
 }
 
@@ -103,7 +108,27 @@ fn base64_encode(data: &[u8]) -> String {
 
 #[tauri::command]
 fn initial_file(state: State<'_, AppState>) -> Option<String> {
-    state.initial.lock().ok()?.clone()
+    let initial = state.initial.lock().ok()?;
+    state.frontend_ready.store(true, Ordering::SeqCst);
+    initial.clone()
+}
+
+/// Opens `path` in the window: before the page is ready it becomes the start-up file, afterwards
+/// it is delivered as an `open-file` event (macOS sends these when a document is double-clicked).
+#[cfg_attr(not(any(target_os = "macos", target_os = "ios")), allow(dead_code))]
+fn open_document(app: &AppHandle, path: String) {
+    let state = app.state::<AppState>();
+    let Ok(mut initial) = state.initial.lock() else { return };
+    if state.frontend_ready.load(Ordering::SeqCst) {
+        drop(initial);
+        let _ = app.emit("open-file", &path);
+        if let Some(win) = app.get_webview_window("main") {
+            let _ = win.unminimize();
+            let _ = win.set_focus();
+        }
+    } else {
+        *initial = Some(path);
+    }
 }
 
 fn same_name(a: &std::ffi::OsStr, b: &std::ffi::OsStr) -> bool {
@@ -177,6 +202,16 @@ fn main() {
             }
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Markly");
+        .build(tauri::generate_context!())
+        .expect("error while building Markly")
+        .run(|_app, _event| {
+            // macOS delivers Finder double-clicks / "Open With" / `open -a` as an event, both at
+            // launch and while running (Windows and Linux pass the path on the command line).
+            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            if let tauri::RunEvent::Opened { urls } = &_event {
+                if let Some(path) = urls.iter().find_map(|u| u.to_file_path().ok()) {
+                    open_document(_app, path.to_string_lossy().into_owned());
+                }
+            }
+        });
 }

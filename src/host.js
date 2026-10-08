@@ -15,6 +15,7 @@ const tauriHost = {
   read: (path) => invoke('read_markdown', { path }),
   watch: (path) => invoke('watch_file', { path }).catch(() => {}),
   onChange: (cb) => listen('file-changed', (e) => cb(e.payload)),
+  onOpenFile: (cb) => listen('open-file', (e) => cb(e.payload)),
   assetUrl: (p) => convertFileSrc(p),
   readImage: (path) => invoke('read_image', { path }),
   pickFile: async () => {
@@ -43,6 +44,7 @@ const browserHost = {
   },
   watch: async () => {},
   onChange: async () => {},
+  onOpenFile: async () => {},
   assetUrl: (p) => p,
   readImage: async () => { throw new Error('unsupported'); },
   pickFile: async () => null,
