@@ -10,7 +10,7 @@ VER=$(node -p "require('./src-tauri/tauri.conf.json').version")
 mkdir -p dist
 cp "$REL/bundle/nsis/Markly_${VER}_x64-setup.exe" dist/
 cp "$REL/Markly.exe" "dist/Markly_${VER}_x64_portable.exe"
-cp samples/showcase.md dist/
+cp samples/showcase.md samples/other.md dist/
 mkdir -p dist/images && cp samples/images/* dist/images/
 node tools/screenshot.mjs /samples/showcase.md dist
 ls -la dist
