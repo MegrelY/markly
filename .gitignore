@@ -3,3 +3,5 @@ dist-web/
 src-tauri/target/
 src-tauri/gen/
 dist/
+src/gen/
+PROGRESS-1.1.md

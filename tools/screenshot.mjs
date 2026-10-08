@@ -12,7 +12,7 @@ const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/cs
 const server = http.createServer((req, res) => {
   let u = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (u === '/' ) u = '/dist-web/index.html';
-  let p = path.join(ROOT, u.startsWith('/samples') || u.startsWith('/dist-web') ? u : '/dist-web' + u);
+  let p = path.join(ROOT, u.startsWith('/samples') || u.startsWith('/tests') || u.startsWith('/dist-web') ? u : '/dist-web' + u);
   fs.readFile(p, (err, data) => {
     if (err) { res.writeHead(404); res.end('nf'); return; }
     res.writeHead(200, { 'content-type': TYPES[path.extname(p)] || 'application/octet-stream' });
@@ -20,7 +20,7 @@ const server = http.createServer((req, res) => {
   });
 }).listen(0);
 const port = server.address().port;
-const browser = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox', '--font-render-hinting=none'] });
+const browser = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox', '--font-render-hinting=none'] });
 const errors = [];
 async function shot(theme, name, opts = {}) {
   const page = await browser.newPage();

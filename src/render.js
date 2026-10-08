@@ -7,22 +7,16 @@ import frontMatter from 'markdown-it-front-matter';
 import taskLists from 'markdown-it-task-lists';
 import alerts from 'markdown-it-github-alerts';
 import mark from 'markdown-it-mark';
-import { mathPlugin, mathBlockHtml, sources, hydrateSources } from './math.js';
-import hljs from 'highlight.js/lib/common';
-import powershell from 'highlight.js/lib/languages/powershell';
-import dockerfile from 'highlight.js/lib/languages/dockerfile';
-import dos from 'highlight.js/lib/languages/dos';
-import nginx from 'highlight.js/lib/languages/nginx';
-import protobuf from 'highlight.js/lib/languages/protobuf';
-import { load as yamlLoad } from 'js-yaml';
+import { mathPlugin, mathBlockHtml, sources, ensureKatexCss } from './math.js';
+import { ALIASES as HL_NAMES, DEPS as HL_DEPS, LOADERS as HL_LOADERS } from './gen/hljs-langs.js';
 import DOMPurify from 'dompurify';
 import { isLocalRef, resolvePath } from './path.js';
 
-hljs.registerLanguage('powershell', powershell);
-hljs.registerLanguage('dockerfile', dockerfile);
-hljs.registerLanguage('dos', dos);
-hljs.registerLanguage('nginx', nginx);
-hljs.registerLanguage('protobuf', protobuf);
+// highlight.js core, each grammar and the YAML parser are loaded on demand: a document only pays
+// for the languages its code blocks actually use (plain prose loads none of them).
+let hljs = null;
+let yamlLoad = null;
+const hlLoaded = new Set();
 
 const ALIAS = { sh: 'bash', zsh: 'bash', shell: 'bash', console: 'bash', ps: 'powershell', ps1: 'powershell', pwsh: 'powershell',
   bat: 'dos', cmd: 'dos', batch: 'dos', yml: 'yaml', js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
@@ -90,7 +84,7 @@ md.renderer.rules.fence = (tokens, idx) => {
   if (lang === 'math' || lang === 'katex') return mathBlockHtml(code);
   const l = ALIAS[lang] || lang;
   let html;
-  if (l && hljs.getLanguage(l)) {
+  if (l && hljs && hljs.getLanguage(l)) {
     try { html = hljs.highlight(code, { language: l, ignoreIllegals: true }).value; } catch { html = esc(code); }
   } else html = esc(code);
   const label = lang || 'text';
@@ -129,12 +123,51 @@ const PURIFY = {
   ADD_ATTR: ['align'],
 };
 
-export function renderMarkdown(src, { baseDir = '', assetUrl = (p) => p } = {}) {
+const fenceLang = (t) => ((t.info ? md.utils.unescapeAll(t.info).trim() : '').split(/\s+/)[0] || '').toLowerCase();
+
+/** Loads highlight.js grammars (plus the grammars they embed) and js-yaml as the tokens require. */
+async function ensureDeps(tokens) {
+  const need = new Set();
+  let yaml = false;
+  for (const t of tokens) {
+    if (t.type === 'front_matter') yaml = true;
+    else if (t.type === 'fence') {
+      const lang = fenceLang(t);
+      const name = HL_NAMES[ALIAS[lang] || lang];
+      if (name) { need.add(name); for (const d of HL_DEPS[name] || []) need.add(d); }
+    }
+  }
+  const jobs = [];
+  if (yaml && !yamlLoad) jobs.push(import('js-yaml').then((m) => { yamlLoad = m.load; }));
+  const missing = [...need].filter((n) => !hlLoaded.has(n));
+  if (missing.length) {
+    jobs.push((async () => {
+      const [core, ...mods] = await Promise.all([hljs ? null : import('highlight.js/lib/core'), ...missing.map((n) => HL_LOADERS[n]())]);
+      hljs ??= core.default || core;
+      missing.forEach((n, i) => { hljs.registerLanguage(n, mods[i].default || mods[i]); hlLoaded.add(n); });
+      // Re-assert alias ownership exactly as when all grammars are registered up front.
+      for (const [alias, owner] of Object.entries(HL_NAMES)) if (alias !== owner && hlLoaded.has(owner)) hljs.registerAliases(alias, { languageName: owner });
+    })());
+  }
+  if (jobs.length) await Promise.all(jobs);
+}
+
+/** Renders Markdown to sanitized HTML. `sources` holds raw math/diagram sources (see attachSources). */
+export async function renderMarkdown(src, { baseDir = '', assetUrl = (p) => p } = {}) {
+  if (src.charCodeAt(0) === 0xfeff) src = src.slice(1);
+  const env = {};
+  const tokens = md.parse(src, env);
+  await ensureDeps(tokens);
   ctx = { baseDir, assetUrl };
   sources.length = 0;
-  if (src.charCodeAt(0) === 0xfeff) src = src.slice(1);
-  const html = md.render(src);
-  return DOMPurify.sanitize(html, PURIFY);
+  const html = DOMPurify.sanitize(md.renderer.render(tokens, md.options, env), PURIFY);
+  return { html, sources: sources.splice(0) };
+}
+
+/** Attaches raw math/diagram sources to the placeholders of freshly inserted HTML. */
+export function attachSources(root, list) {
+  root.querySelectorAll('[data-tex]').forEach((el) => { el._src = list[+el.dataset.tex]; });
+  root.querySelectorAll('[data-mmd]').forEach((el) => { el._src = list[+el.dataset.mmd]; });
 }
 
 // --- Mermaid: loaded lazily only when a document contains diagrams ---
@@ -157,11 +190,12 @@ const MERMAID_DARK = {
 };
 let mermaidSeq = 0;
 export async function renderMermaid(root, dark) {
-  hydrateSources(root);
   const blocks = root.querySelectorAll('.mermaid-block');
   if (!blocks.length) return;
   mermaidP ??= import('mermaid').then((m) => m.default);
-  const mermaid = await mermaidP;
+  // Mermaid renders $$…$$ labels with KaTeX, which needs its stylesheet.
+  const needsCss = [...blocks].some((b) => b._src && b._src.includes('$$'));
+  const [mermaid] = await Promise.all([mermaidP, needsCss ? ensureKatexCss() : null]);
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',

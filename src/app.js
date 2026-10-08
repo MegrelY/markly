@@ -1,5 +1,5 @@
 import { host } from './host.js';
-import { renderMarkdown, renderMermaid, renderMath } from './render.js';
+import { renderMarkdown, renderMermaid, renderMath, attachSources } from './render.js';
 import { resolvePath, splitHash, isMarkdownPath, basename, dirname } from './path.js';
 
 const $ = (id) => document.getElementById(id);
@@ -93,7 +93,6 @@ function buildToc() {
     const text = [...h.childNodes].filter((n) => !(n.classList && n.classList.contains('heading-anchor'))).map((n) => n.textContent).join('').trim();
     return `<a href="#${esc(encodeURIComponent(h.id))}" data-id="${esc(h.id)}" class="toc-l${+h.tagName[1] - minLevel + 1}" dir="auto">${esc(text)}</a>`;
   }).join('');
-  updateActiveToc();
 }
 let activeId = null;
 function updateActiveToc() {
@@ -176,31 +175,36 @@ function showWelcome() {
   revealWindow();
 }
 
+let loadSeq = 0;
 async function openFile(path, opts = {}) {
   const { hash = '', keepScroll = false, history = true, silent = false } = opts;
+  const seq = ++loadSeq;
   let doc;
   try {
     doc = await host.read(path);
   } catch (err) {
     if (silent) throw err;
+    if (seq !== loadSeq) return false;
     toast(String(err?.message || err));
     if (!keepScroll) removeRecent(path);
     if (!current) showWelcome();
     return false;
   }
+  if (seq !== loadSeq) return false;
+  const t0 = performance.now();
+  // Rendering may first fetch the highlight.js grammars / YAML parser the document needs.
+  const rendered = await renderMarkdown(doc.content, { baseDir: doc.dir, assetUrl: host.assetUrl });
+  if (seq !== loadSeq) return false; // a newer open/reload superseded this one
+
   if (history && current && current.path !== doc.path) { back.push({ path: current.path, top: scroller.scrollTop }); fwd.length = 0; }
   const prevTop = scroller.scrollTop;
   const samePath = current && current.path === doc.path;
   current = doc;
 
-  const t0 = performance.now();
   delete document.body.dataset.ready;
-  const html = renderMarkdown(doc.content, { baseDir: doc.dir, assetUrl: host.assetUrl });
-  const t1 = performance.now();
-  content.innerHTML = html;
-  const t2 = performance.now();
+  content.innerHTML = rendered.html;
+  attachSources(content, rendered.sources);
   postProcess();
-  const t3 = performance.now();
   welcome.hidden = true;
   root.classList.remove('no-doc');
   $('doc-title').querySelector('.doc-name').textContent = doc.name;
@@ -210,17 +214,24 @@ async function openFile(path, opts = {}) {
   addRecent(doc.path);
   if (!samePath) host.watch(doc.path);
 
+  // All DOM writes (TOC included) happen before the first layout read, so the browser lays the
+  // new document out once instead of twice.
+  buildToc();
   if (keepScroll || (samePath && !hash && opts.reload)) scroller.scrollTop = prevTop;
   else if (!(hash && scrollToId(hash, false))) scroller.scrollTop = opts.top || 0;
-  buildToc();
+  updateActiveToc();
   if (findState.open && findState.query) runFind(findState.query, false);
   revealWindow();
   scroller.focus({ preventScroll: true });
   Promise.all([renderMath(content), renderMermaid(content, isDark())])
     .catch((e) => console.error(e))
-    .finally(() => { if (keepScroll) scroller.scrollTop = prevTop; updateActiveToc(); document.body.dataset.ready = '1'; });
+    .finally(() => {
+      if (seq !== loadSeq) return;
+      if (keepScroll) scroller.scrollTop = prevTop;
+      updateActiveToc();
+      document.body.dataset.ready = '1';
+    });
   window.__marklyRenderMs = performance.now() - t0;
-  window.__marklyPerf = { parse: t1 - t0, dom: t2 - t1, post: t3 - t2, rest: performance.now() - t3 };
   return true;
 }
 

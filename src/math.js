@@ -83,21 +83,29 @@ export function mathPlugin(md) {
 }
 export const mathBlockHtml = (tex) => `<div class="math-block" data-tex="${sources.push(tex) - 1}">${esc(tex)}</div>\n`;
 
-// Raw sources for math/diagrams of the most recent render, referenced by index.
-// (DOMPurify strips attribute values containing "-->", common in Mermaid.)
+// Raw sources for math/diagrams collected while rendering, referenced by index from data-tex /
+// data-mmd placeholders (DOMPurify strips attribute values containing "-->", common in Mermaid).
 export const sources = [];
-export function hydrateSources(root) {
-  root.querySelectorAll('[data-tex]').forEach((el) => { el._src ??= sources[+el.dataset.tex]; });
-  root.querySelectorAll('[data-mmd]').forEach((el) => { el._src ??= sources[+el.dataset.mmd]; });
+
+// KaTeX's stylesheet is only fetched for documents with math. It is inserted before style.css so
+// the cascade order is the same as when it was linked statically.
+let cssP = null;
+export function ensureKatexCss() {
+  return (cssP ??= new Promise((resolve) => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'katex/katex.css';
+    link.onload = link.onerror = () => resolve();
+    document.head.insertBefore(link, document.querySelector('link[href="style.css"]'));
+  }));
 }
 
 let katexP = null;
 export async function renderMath(root) {
-  hydrateSources(root);
   const nodes = root.querySelectorAll('[data-tex]');
   if (!nodes.length) return;
   katexP ??= import('katex').then((m) => m.default || m);
-  const katex = await katexP;
+  const [katex] = await Promise.all([katexP, ensureKatexCss()]);
   for (const el of nodes) {
     try {
       katex.render(el._src ?? el.textContent, el, { displayMode: el.classList.contains('math-block'), throwOnError: false, output: 'htmlAndMathml', strict: 'ignore' });

@@ -4,7 +4,7 @@ import http from 'node:http'; import fs from 'node:fs'; import path from 'node:p
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
 const s = http.createServer((q, r) => { const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
-const b = await puppeteer.launch({ executablePath: '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
 const p = await b.newPage();
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 await p.setViewport({ width: 1200, height: 800 });

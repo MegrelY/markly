@@ -95,7 +95,9 @@ html, body { height: 100%; margin: 0; }
 body {
   background: var(--bg); color: var(--text);
   font-family: var(--font-sans); font-size: 14px;
-  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  /* text-rendering is left at 'auto': Chromium already kerns and uses ligatures, and
+     'optimizeLegibility' disables its shaping cache (measurably slower layout, same pixels). */
+  -webkit-font-smoothing: antialiased;
   overflow: hidden; display: flex; flex-direction: column;
 }
 ::selection { background: color-mix(in srgb, var(--accent) 28%, transparent); }
