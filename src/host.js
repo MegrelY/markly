@@ -16,6 +16,9 @@ const tauriHost = {
   watch: (path) => invoke('watch_file', { path }).catch(() => {}),
   onChange: (cb) => listen('file-changed', (e) => cb(e.payload)),
   onOpenFile: (cb) => listen('open-file', (e) => cb(e.payload)),
+  listDir: (path) => invoke('list_dir', { path }),
+  watchDir: (path) => invoke('watch_dir', { path }).catch(() => {}),
+  onDirChange: (cb) => listen('dir-changed', (e) => cb(e.payload)),
   assetUrl: (p) => convertFileSrc(p),
   readImage: (path) => invoke('read_image', { path }),
   pickFile: async () => {
@@ -45,6 +48,16 @@ const browserHost = {
   watch: async () => {},
   onChange: async () => {},
   onOpenFile: async () => {},
+  // Dev/test servers (tools/dev-list.mjs) answer "<folder>/?__list" with the same JSON as list_dir.
+  listDir: async (path) => {
+    const dir = !path || path === '~' ? '' : path.replace(/\/+$/, '');
+    const res = await fetch(`${dir}/?__list=1`, { cache: 'no-store' });
+    const body = await res.json().catch(() => ({ kind: 'other', message: `HTTP ${res.status}` }));
+    if (!res.ok) throw body;
+    return body;
+  },
+  watchDir: async () => {},
+  onDirChange: async () => {},
   assetUrl: (p) => p,
   readImage: async () => { throw new Error('unsupported'); },
   pickFile: async () => null,

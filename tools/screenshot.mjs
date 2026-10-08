@@ -4,12 +4,14 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
+import { maybeServeList } from './dev-list.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const file = process.argv[2] || '/samples/showcase.md';
 const outDir = process.argv[3] || path.join(ROOT, 'dist');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.md': 'text/markdown; charset=utf-8', '.png': 'image/png' };
 const server = http.createServer((req, res) => {
+  if (maybeServeList(ROOT, req, res)) return;
   let u = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   if (u === '/' ) u = '/dist-web/index.html';
   let p = path.join(ROOT, u.startsWith('/samples') || u.startsWith('/tests') || u.startsWith('/dist-web') ? u : '/dist-web' + u);
@@ -27,7 +29,7 @@ async function shot(theme, name, opts = {}) {
   page.on('pageerror', (e) => errors.push(`[${theme}] ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${theme}] console: ${m.text()}`); });
   await page.setViewport({ width: opts.width || 1280, height: opts.height || 860, deviceScaleFactor: opts.dpr || 1.5 });
-  await page.evaluateOnNewDocument((t, toc) => { localStorage.setItem('markly.theme', t); localStorage.setItem('markly.toc', toc); }, theme, opts.toc ?? '1');
+  await page.evaluateOnNewDocument((t, toc, files) => { localStorage.setItem('markly.theme', t); localStorage.setItem('markly.toc', toc); localStorage.setItem('markly.files.open', files); }, theme, opts.toc ?? '1', String(!!opts.files));
   await page.goto(`http://localhost:${port}/dist-web/index.html?file=${encodeURIComponent(file)}`, { waitUntil: 'networkidle0' });
   await page.waitForSelector('body[data-ready="1"]', { timeout: 20000 });
   await page.evaluate(() => document.fonts.ready);
@@ -35,6 +37,7 @@ async function shot(theme, name, opts = {}) {
   if (opts.before) await opts.before(page);
   if (opts.click) { await page.click(opts.click); }              // e.g. open a menu
   if (opts.hover) { await page.hover(opts.hover); }
+  if (opts.waitFor) { await page.waitForSelector(opts.waitFor); await page.evaluate(() => document.fonts.ready); }
   await new Promise((r) => setTimeout(r, 400));
   const out = path.join(outDir, name);
   if (opts.full) {
@@ -53,6 +56,8 @@ const jobs = JSON.parse(process.env.SHOTS || 'null') || [
   ['dark', 'markly-dark.png', { scrollTo: 'math' }],
   ['light', 'markly-copy-light.png', { click: '#btn-copy', hover: '#copy-path' }],
   ['dark', 'markly-copy-dark.png', { click: '#btn-copy', hover: '#copy-path' }],
+  ['light', 'markly-files-light.png', { files: true, waitFor: '.fb-item.current' }],
+  ['dark', 'markly-files-dark.png', { files: true, waitFor: '.fb-item.current' }],
 ];
 for (const [t, n, o] of jobs) await shot(t, n, o);
 await browser.close();

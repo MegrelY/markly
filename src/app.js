@@ -26,10 +26,13 @@ const UNSAFE_EXT = new RegExp('\\.(' + [
 const IS_MAC = /^Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent);
 const THEME_KEY = IS_MAC ? '⇧⌘L' : 'Ctrl+Shift+L';
 const COPY_PATH_KEY = IS_MAC ? '⇧⌘C' : 'Ctrl+Shift+C';
+const FILES_KEY = IS_MAC ? '⇧⌘E' : 'Ctrl+Shift+E';
 if (IS_MAC) {
   document.querySelectorAll('[title*="Ctrl+"]').forEach((el) => { el.title = el.title.replace(/Ctrl\+/g, '⌘'); });
   document.querySelectorAll('kbd').forEach((el) => { if (el.textContent === 'Ctrl') el.textContent = '⌘'; });
 }
+
+$('btn-files').title = `Folder browser (${FILES_KEY})`;
 
 let current = null;               // { path, name, dir }
 const back = [], fwd = [];
@@ -233,6 +236,28 @@ copyBtn.onclick = (e) => { e.stopPropagation(); toggleCopyMenu(); };
 $('copy-path').onclick = () => copyFromDoc('path');
 $('copy-content').onclick = () => copyFromDoc('content');
 
+// ---------------------------------------------------------------- folder browser (lazy)
+let filesP = null;
+function loadFiles() {
+  filesP ||= import('./files.js').then(async (m) => {
+    await m.init({
+      host, LS, toast,
+      openFile: (p) => openFile(p),
+      getCurrent: () => current,
+      copyText: writeClipboard,
+      focusContent: () => scroller.focus({ preventScroll: true }),
+    });
+    return m;
+  });
+  return filesP;
+}
+async function toggleFiles(force, opts = {}) {
+  const want = force ?? !root.classList.contains('files-open');
+  if (!want) { if (filesP) (await filesP).hide(); return; }
+  (await loadFiles()).show(opts);
+}
+$('btn-files').onclick = () => toggleFiles();
+
 // ---------------------------------------------------------------- loading & rendering
 function showWelcome() {
   current = null;
@@ -286,6 +311,7 @@ async function openFile(path, opts = {}) {
   $('doc-title').title = doc.path;
   host.setTitle(`${doc.name} — Markly`);
   addRecent(doc.path);
+  if (filesP) filesP.then((m) => m.follow(doc));
   if (!samePath) host.watch(doc.path);
 
   // All DOM writes (TOC included) happen before the first layout read, so the browser lays the
@@ -471,6 +497,7 @@ document.addEventListener('keydown', (e) => {
   let handled = true;
   if (mod && !e.shiftKey && k === 'o') pickAndOpen();
   else if (mod && e.shiftKey && !e.altKey && k === 'c') copyFromDoc('path');
+  else if (mod && e.shiftKey && !e.altKey && k === 'e') toggleFiles(undefined, { focus: true });
   else if (mod && k === 'f') openFind();
   else if (mod && k === 'p') window.print();
   else if (mod && (k === '=' || k === '+' || e.code === 'NumpadAdd')) stepZoom(1);
@@ -534,5 +561,7 @@ if (themePref !== 'system') host.setTheme(themePref);
   try { initial = await host.initialFile(); } catch { /* none */ }
   if (initial) { if (!(await openFile(initial))) showWelcome(); }
   else showWelcome();
+  // Re-open the folder browser if it was open last time (loaded only then).
+  if (LS.get('files.open', false)) toggleFiles(true);
 })();
 window.__marklyOpen = openFile;

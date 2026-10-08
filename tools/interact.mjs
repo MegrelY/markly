@@ -1,9 +1,10 @@
 // Headless interaction checks for the frontend (browser host mode).
 import puppeteer from 'puppeteer-core';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+import { maybeServeList } from './dev-list.mjs';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
-const s = http.createServer((q, r) => { const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
+const s = http.createServer((q, r) => { if (maybeServeList(ROOT, q, r)) return; const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
 const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
 const p = await b.newPage();
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
@@ -20,6 +21,10 @@ await p.goto(base, { waitUntil: 'load' });
 await p.waitForSelector('#mk-welcome:not([hidden])');
 check('welcome screen when no file', true);
 check('copy disabled without a file', await p.$eval('#btn-copy', (e) => e.disabled && getComputedStyle(e).pointerEvents === 'none'));
+await p.click('#btn-files');
+await p.waitForFunction(() => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === '/' && document.querySelectorAll('#mk-files .fb-item').length > 3, { timeout: 5000 });
+check('folder browser works without a document (starts at home)', true);
+await p.click('#btn-files');
 
 await p.goto(base + '?file=/samples/showcase.md', { waitUntil: 'load' });
 await p.waitForSelector('body[data-ready="1"]');
@@ -118,6 +123,114 @@ await p.click('#btn-recent');
 // recent menu
 await p.click('#btn-recent');
 check('recent menu lists files', (await p.$$eval('#recent-menu .recent-item', (a) => a.length)) >= 2);
+
+// folder browser
+await p.keyboard.press('Escape');
+await p.evaluate(() => window.__marklyOpen('/samples/showcase.md'));
+await p.waitForFunction(() => document.title.startsWith('showcase.md'));
+const TMP = path.join(ROOT, 'tests/_fb_tmp');
+try { fs.chmodSync(path.join(TMP, 'locked'), 0o755); } catch { /* not there */ }
+fs.rmSync(TMP, { recursive: true, force: true });
+fs.mkdirSync(path.join(TMP, 'empty'), { recursive: true });
+fs.mkdirSync(path.join(TMP, 'locked'));
+fs.writeFileSync(path.join(TMP, 'a.md'), '# A\n');
+for (const n of ['B.md', 'a10.md', 'a2.md']) fs.writeFileSync(path.join(TMP, n), '# x\n');
+fs.writeFileSync(path.join(TMP, '.hidden.md'), '# hidden\n');
+fs.writeFileSync(path.join(TMP, 'notes.txt.bak'), 'x');
+fs.chmodSync(path.join(TMP, 'locked'), 0o000);
+const fb = {
+  names: () => p.$$eval('#mk-files .fb-item', (a) => a.map((x) => x.querySelector('.fb-name').textContent)),
+  path: () => p.$eval('#mk-files .fb-path', (e) => e.textContent.replace(/\u200E/g, '')),
+  waitPath: (want) => p.waitForFunction((w) => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === w, { timeout: 5000 }, want),
+  sel: () => p.$eval('#mk-files .fb-item.sel .fb-name', (e) => e.textContent).catch(() => null),
+};
+check('files button between toc and open', await p.evaluate(() => document.getElementById('btn-toc').nextElementSibling.id === 'btn-files' && document.getElementById('btn-files').nextElementSibling.id === 'btn-open'));
+check('folder browser not loaded at startup', await p.evaluate(() => !document.getElementById('mk-files') && !document.querySelector('link[href="files.css"]') && !performance.getEntriesByType('resource').some((r) => /\/files[-.]/.test(r.name))));
+await p.click('#btn-files');
+await p.waitForSelector('#mk-files .fb-item.current');
+check('panel opens on the right', await p.evaluate(() => { const f = document.getElementById('mk-files').getBoundingClientRect(); return f.width >= 200 && Math.abs(f.right - innerWidth) < 2; }));
+check('panel shows current folder', (await fb.path()) === '/samples', await fb.path());
+check('breadcrumbs', JSON.stringify(await p.$$eval('#mk-files .fb-crumb', (a) => a.map((x) => x.textContent))) === '["/","samples"]');
+check('folders first', JSON.stringify(await fb.names()) === '["images","other.md","showcase.md"]', JSON.stringify(await fb.names()));
+check('current file highlighted', (await p.$eval('#mk-files .fb-item.current .fb-name', (e) => e.textContent)) === 'showcase.md');
+check('markdown files accent', await p.$eval('#mk-files .fb-item.md:not(.current) .fb-name', (e) => { const t = document.createElement('span'); t.style.color = 'var(--accent)'; document.body.appendChild(t); const accent = getComputedStyle(t).color; t.remove(); return getComputedStyle(e).color === accent; }));
+await p.click('#mk-files .fb-item.dir');
+check('single click on folder only selects', (await fb.path()) === '/samples' && (await fb.sel()) === 'images');
+await p.click('#mk-files .fb-item.dir', { count: 2 });
+await fb.waitPath('/samples/images');
+check('double click enters folder', true);
+check('other files dimmed', await p.$eval('#mk-files .fb-item.other', (e) => +getComputedStyle(e).opacity < 0.7));
+await p.click('#mk-files .fb-item.other', { count: 2 });
+await sleep(300);
+check('other files never opened', (await p.title()).startsWith('showcase.md'));
+await p.click('#mk-files .fb-up');
+await fb.waitPath('/samples');
+check('up button returns and selects folder', (await fb.sel()) === 'images');
+await p.click('#mk-files .fb-item.md:not(.current)');
+await p.waitForFunction(() => document.title.startsWith('other.md'));
+check('single click opens markdown in same window', (await p.$eval('#mk-files .fb-item.current .fb-name', (e) => e.textContent)) === 'other.md');
+await p.click('#mk-files button.fb-crumb[data-path="/"]');
+await fb.waitPath('/');
+check('breadcrumb navigates', (await fb.names()).includes('samples'));
+check('hidden files not listed', !(await fb.names()).some((n) => n.startsWith('.')));
+await p.evaluate(() => window.__marklyOpen('/tests/_fb_tmp/a.md'));
+await fb.waitPath('/tests/_fb_tmp');
+check('follows the current file', (await p.$eval('#mk-files .fb-item.current .fb-name', (e) => e.textContent)) === 'a.md');
+check('hidden markdown not listed', !(await fb.names()).includes('.hidden.md'));
+await p.click('#mk-files .fb-filter');
+check('only-markdown filter, natural case-insensitive sort', JSON.stringify(await fb.names()) === '["empty","locked","a.md","a2.md","a10.md","B.md"]' && (await p.$eval('#mk-files .fb-filter', (e) => e.getAttribute('aria-pressed'))) === 'true', JSON.stringify(await fb.names()));
+await p.click('#mk-files .fb-filter');
+check('filter off shows other files', (await fb.names()).includes('notes.txt.bak'));
+// keyboard: Home -> "empty", Enter enters, Backspace goes up, type-ahead, Enter opens
+await p.focus('#mk-files .fb-list');
+await p.keyboard.press('Home');
+check('keyboard home', (await fb.sel()) === 'empty');
+await p.keyboard.press('Enter');
+await fb.waitPath('/tests/_fb_tmp/empty');
+check('empty folder state', (await p.$eval('#mk-files .fb-empty', (e) => e.textContent)) === 'This folder is empty');
+await p.keyboard.press('Backspace');
+await fb.waitPath('/tests/_fb_tmp');
+check('keyboard backspace goes up', (await fb.sel()) === 'empty');
+await p.keyboard.press('ArrowDown');
+check('keyboard arrow down', (await fb.sel()) === 'locked');
+await p.keyboard.press('ArrowRight');
+await p.waitForSelector('#mk-files .fb-error');
+check('permission denied state', (await p.$eval('#mk-files .fb-error strong', (e) => e.textContent)).includes('permission'));
+await p.click('#mk-files .fb-up');
+await fb.waitPath('/tests/_fb_tmp');
+await p.focus('#mk-files .fb-list');
+await p.keyboard.press('Home');
+await p.keyboard.type('a');
+check('type-ahead', (await fb.sel()) === 'a.md');
+await p.evaluate(() => window.__marklyOpen('/samples/showcase.md'));
+await fb.waitPath('/samples');
+await p.focus('#mk-files .fb-list');
+await p.keyboard.type('o');
+await p.keyboard.press('Enter');
+await p.waitForFunction(() => document.title.startsWith('other.md'));
+check('keyboard enter opens markdown, focus stays', await p.evaluate(() => document.activeElement?.classList.contains('fb-list')));
+await p.click('#mk-files .fb-copy');
+await sleep(100);
+check('copy folder path', (await clip()) === '/samples');
+// resize + remembered state
+const w0 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
+const hb = await p.$eval('#mk-files .fb-resize', (e) => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + 200 }; });
+await p.mouse.move(hb.x, hb.y); await p.mouse.down(); await p.mouse.move(hb.x - 80, hb.y, { steps: 5 }); await p.mouse.up();
+const w1 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
+check('panel resizable', Math.abs(w1 - w0 - 80) <= 2, `${w0} -> ${w1}`);
+await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyE'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
+check('ctrl+shift+e closes panel', await p.$eval('#mk-files', (e) => e.hidden));
+await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyE'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
+await p.waitForSelector('#mk-files:not([hidden]) .fb-item.current');
+check('ctrl+shift+e opens panel', true);
+await p.goto(base + '?file=/samples/showcase.md', { waitUntil: 'load' });
+await p.waitForSelector('#mk-files:not([hidden]) .fb-item.current', { timeout: 5000 });
+const w2 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
+check('open state and width remembered', Math.abs(w2 - w1) <= 1, `${w2}`);
+await p.click('#btn-files');
+check('toolbar button closes panel', await p.$eval('#mk-files', (e) => e.hidden));
+fs.chmodSync(path.join(TMP, 'locked'), 0o755);
+fs.rmSync(TMP, { recursive: true, force: true });
 
 // sanitizer
 await p.evaluate(() => window.__marklyOpen('/tests/xss-test.md'));
