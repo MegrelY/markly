@@ -1,6 +1,8 @@
 // Folder browser: a right-side panel listing the current folder. Loaded on first use (lazy chunk +
 // files.css), so it costs nothing at start-up while closed.
-import { isMarkdownPath, dirname } from './path.js';
+// Path helpers come from the app via init() (importing path.js here would split it into a shared
+// chunk and add a request at start-up).
+let isMarkdownPath, dirname;
 
 const DEFAULT_W = 300, MIN_W = 200, MAX_W = 640;
 // Explicit locale: some web views run with a POSIX locale whose collation is case-sensitive.
@@ -39,6 +41,7 @@ function loadCss() {
 
 export async function init(c) {
   ctx = c; root = document.documentElement;
+  ({ isMarkdownPath, dirname } = c);
   mdOnly = ctx.LS.get('files.mdOnly', false);
   width = +ctx.LS.get('files.width', DEFAULT_W) || DEFAULT_W;   // preferred width; clamped when applied
   toggleBtn = document.getElementById('btn-files');

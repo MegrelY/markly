@@ -241,7 +241,7 @@ let filesP = null;
 function loadFiles() {
   filesP ||= import('./files.js').then(async (m) => {
     await m.init({
-      host, LS, toast,
+      host, LS, toast, isMarkdownPath, dirname,
       openFile: (p) => openFile(p),
       getCurrent: () => current,
       copyText: writeClipboard,
