@@ -19,6 +19,10 @@ const tauriHost = {
   listDir: (path) => invoke('list_dir', { path }),
   watchDir: (path) => invoke('watch_dir', { path }).catch(() => {}),
   onDirChange: (cb) => listen('dir-changed', (e) => cb(e.payload)),
+  gitInfo: (path) => invoke('git_info', { path }),
+  gitLog: (root, rel) => invoke('git_log', { root, rel }),
+  gitDiff: (root, { rev = null, base = null, paths }) => invoke('git_diff', { root, rev, base, paths }),
+  gitFile: (root, rev, rel) => invoke('git_file', { root, rev, rel }),
   assetUrl: (p) => convertFileSrc(p),
   readImage: (path) => invoke('read_image', { path }),
   pickFile: async () => {
@@ -36,6 +40,14 @@ const tauriHost = {
   close: () => getCurrentWindow().close(),
   onDrop: (cb) => getCurrentWebview().onDragDropEvent((e) => cb(e.payload)),
 };
+
+const devGit = !isTauri && typeof location !== 'undefined' && new URLSearchParams(location.search).has('git');
+async function gitFetch(op, args) {
+  const res = await fetch(`/?__git=${op}`, { method: 'POST', body: JSON.stringify(args), cache: 'no-store' });
+  const body = await res.json().catch(() => ({ kind: 'git', message: `HTTP ${res.status}` }));
+  if (!res.ok) throw body;
+  return body;
+}
 
 const browserHost = {
   kind: 'browser',
@@ -58,6 +70,12 @@ const browserHost = {
   },
   watchDir: async () => {},
   onDirChange: async () => {},
+  // File history: only when the page was opened with ?git=1 by a dev/test server that answers
+  // "/?__git=<op>" (tools/dev-list.mjs); plain previews and benchmarks make no extra request.
+  gitInfo: async (path) => (devGit ? gitFetch('info', { path }) : null),
+  gitLog: (root, rel) => gitFetch('log', { root, rel }),
+  gitDiff: (root, { rev = null, base = null, paths }) => gitFetch('diff', { root, rev, base, paths }),
+  gitFile: (root, rev, rel) => gitFetch('file', { root, rev, rel }),
   assetUrl: (p) => p,
   readImage: async () => { throw new Error('unsupported'); },
   pickFile: async () => null,

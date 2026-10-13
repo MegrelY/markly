@@ -27,12 +27,14 @@ const IS_MAC = /^Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigato
 const THEME_KEY = IS_MAC ? '⇧⌘L' : 'Ctrl+Shift+L';
 const COPY_PATH_KEY = IS_MAC ? '⇧⌘C' : 'Ctrl+Shift+C';
 const FILES_KEY = IS_MAC ? '⇧⌘E' : 'Ctrl+Shift+E';
+const HISTORY_KEY = IS_MAC ? '⇧⌘H' : 'Ctrl+Shift+H';
 if (IS_MAC) {
   document.querySelectorAll('[title*="Ctrl+"]').forEach((el) => { el.title = el.title.replace(/Ctrl\+/g, '⌘'); });
   document.querySelectorAll('kbd').forEach((el) => { if (el.textContent === 'Ctrl') el.textContent = '⌘'; });
 }
 
 $('btn-files').title = `Folder browser (${FILES_KEY})`;
+$('btn-history').title = `File history (${HISTORY_KEY})`;
 
 let current = null;               // { path, name, dir }
 const back = [], fwd = [];
@@ -258,6 +260,47 @@ async function toggleFiles(force, opts = {}) {
 }
 $('btn-files').onclick = () => toggleFiles();
 
+// ---------------------------------------------------------------- file history (lazy)
+// Whether the open file is tracked by git is checked after the document is on screen (a quick
+// look for a .git folder, then one `git ls-files` off the UI thread); the History button only
+// appears for tracked files. The history view itself is loaded on first use.
+const historyBtn = $('btn-history');
+let gitInfo = null, gitSeq = 0;
+let historyP = null;
+function loadHistory() {
+  historyP ||= import('./history.js').then(async (m) => {
+    await m.init({
+      host, LS, toast, IS_MAC,
+      getCurrent: () => current,
+      copyText: writeClipboard,
+      focusContent: () => scroller.focus({ preventScroll: true }),
+      showRevision: (content, rev) => current && openFile(current.path, { revision: { ...rev, content }, history: false }),
+      returnToCurrent: () => current && openFile(current.path, { history: false, top: 0 }),
+    });
+    m.setFile(gitInfo);
+    return m;
+  });
+  return historyP;
+}
+function checkGit(path) {
+  const seq = ++gitSeq;
+  setTimeout(async () => {
+    let info = null;
+    try { info = await host.gitInfo(path); } catch { /* not a repository */ }
+    if (seq !== gitSeq) return;
+    gitInfo = info;
+    historyBtn.hidden = !info;
+    if (historyP) historyP.then((m) => m.setFile(info));
+  }, 0);
+}
+async function toggleHistory(force) {
+  if (!gitInfo) { if (force !== false && current) toast('History is available for files tracked in a Git repository'); return; }
+  const m = await loadHistory();
+  const want = force ?? !m.opened();
+  if (want) m.show(); else m.hide();
+}
+historyBtn.onclick = () => toggleHistory();
+
 // ---------------------------------------------------------------- loading & rendering
 function showWelcome() {
   current = null;
@@ -279,7 +322,8 @@ async function openFile(path, opts = {}) {
   const seq = ++loadSeq;
   let doc;
   try {
-    doc = await host.read(path);
+    // A revision (file history) is the given content shown under the same file.
+    doc = opts.revision && current ? { ...current, content: opts.revision.content, revision: opts.revision } : await host.read(path);
   } catch (err) {
     if (silent) throw err;
     if (seq !== loadSeq) return false;
@@ -294,6 +338,7 @@ async function openFile(path, opts = {}) {
   const rendered = await renderMarkdown(doc.content, { baseDir: doc.dir, assetUrl: host.assetUrl });
   if (seq !== loadSeq) return false; // a newer open/reload superseded this one
 
+  const wasRevision = !!current?.revision;
   if (history && current && current.path !== doc.path) { back.push({ path: current.path, top: scroller.scrollTop }); fwd.length = 0; }
   const prevTop = scroller.scrollTop;
   const samePath = current && current.path === doc.path;
@@ -310,9 +355,11 @@ async function openFile(path, opts = {}) {
   $('doc-dir').textContent = doc.dir;
   $('doc-title').title = doc.path;
   host.setTitle(`${doc.name} — Markly`);
-  addRecent(doc.path);
+  if (!doc.revision) addRecent(doc.path);
   if (filesP) filesP.then((m) => m.follow(doc));
-  if (!samePath) host.watch(doc.path);
+  if (!samePath) { host.watch(doc.path); historyBtn.hidden = true; gitInfo = null; checkGit(doc.path); }
+  else if (!doc.revision && historyP) historyP.then((m) => m.refresh());
+  if (historyP && (doc.revision || wasRevision)) historyP.then((m) => m.docShown(doc));
 
   // All DOM writes (TOC included) happen before the first layout read, so the browser lays the
   // new document out once instead of twice.
@@ -498,6 +545,7 @@ document.addEventListener('keydown', (e) => {
   if (mod && !e.shiftKey && k === 'o') pickAndOpen();
   else if (mod && e.shiftKey && !e.altKey && k === 'c') copyFromDoc('path');
   else if (mod && e.shiftKey && !e.altKey && k === 'e') toggleFiles(undefined, { focus: true });
+  else if (mod && e.shiftKey && !e.altKey && k === 'h') toggleHistory();
   else if (mod && k === 'f') openFind();
   else if (mod && k === 'p') window.print();
   else if (mod && (k === '=' || k === '+' || e.code === 'NumpadAdd')) stepZoom(1);
@@ -514,7 +562,7 @@ document.addEventListener('keydown', (e) => {
   else if (IS_MAC && e.metaKey && e.key === ']') goForward();
   else if (e.key === 'BrowserBack') goBack();
   else if (e.key === 'BrowserForward') goForward();
-  else if (e.key === 'Escape') { if (findState.open) closeFind(); else closeMenus(); }
+  else if (e.key === 'Escape') { if (findState.open) closeFind(); else if (current?.revision && $('copy-menu').hidden && $('recent-menu').hidden) openFile(current.path, { history: false }); else closeMenus(); }
   else handled = false;
   if (handled) e.preventDefault();
 });
@@ -541,6 +589,7 @@ host.onDrop((p) => {
 let reloadTimer;
 host.onChange((path) => {
   if (!current || path !== current.path) return;
+  if (current.revision) { if (historyP) historyP.then((m) => m.refresh()); return; } // keep showing the old version
   clearTimeout(reloadTimer);
   reloadTimer = setTimeout(async () => {
     try { await openFile(current.path, { keepScroll: true, history: false, silent: true }); }

@@ -6,3 +6,4 @@ dist/
 src/gen/
 PROGRESS-1.1.md
 tests/_fb_tmp/
+tests/_git_fixture/

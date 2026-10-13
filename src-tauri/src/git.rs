@@ -406,7 +406,7 @@ mod tests {
         std::fs::write(&f, "# Notes\n\nchanged\n").unwrap();
         let l = log(&i.root, &i.rel).unwrap();
         assert!(l.unstaged && !l.staged);
-        assert!(diff(&i.root, None, None, &[i.rel.clone()]).unwrap().patch.contains("+changed"));
+        assert!(diff(&i.root, None, None, std::slice::from_ref(&i.rel)).unwrap().patch.contains("+changed"));
         assert_eq!(std::fs::read(d.0.join(".git/index")).unwrap(), index);
     }
 

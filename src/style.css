@@ -121,6 +121,7 @@ button { font: inherit; color: inherit; }
   width: 32px; height: 30px; display: inline-grid; place-items: center; border: 0; border-radius: 7px;
   background: transparent; color: var(--muted); cursor: pointer; transition: background .12s, color .12s;
 }
+.icon-btn[hidden] { display: none; }
 .icon-btn:hover { background: var(--surface-2); color: var(--text-strong); }
 .icon-btn:active { transform: translateY(0.5px); }
 .icon-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }

@@ -1,10 +1,10 @@
 // Headless interaction checks for the frontend (browser host mode).
 import puppeteer from 'puppeteer-core';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
-import { maybeServeList } from './dev-list.mjs';
+import { maybeServeList, maybeServeGit } from './dev-list.mjs';
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
-const s = http.createServer((q, r) => { if (maybeServeList(ROOT, q, r)) return; const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
+const s = http.createServer((q, r) => { if (maybeServeList(ROOT, q, r) || maybeServeGit(ROOT, q, r)) return; const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
 const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
 const p = await b.newPage();
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
@@ -231,6 +231,100 @@ await p.click('#btn-files');
 check('toolbar button closes panel', await p.$eval('#mk-files', (e) => e.hidden));
 fs.chmodSync(path.join(TMP, 'locked'), 0o755);
 fs.rmSync(TMP, { recursive: true, force: true });
+
+// ---------------------------------------------------------------- file history (git fixture)
+{
+  const { execFileSync } = await import('node:child_process');
+  const FX = path.join(ROOT, 'tests/_git_fixture');
+  execFileSync('bash', [path.join(ROOT, 'tools/make-git-fixture.sh'), FX, '--dirty']);
+  fs.writeFileSync(path.join(FX, 'untracked.md'), '# Not committed\n');
+  const FILE = '/tests/_git_fixture/docs/Guides ü/User guide.md';
+  const hk = async () => { await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyH'); await p.keyboard.up('Shift'); await p.keyboard.up('Control'); };
+  const settled = () => p.waitForFunction(() => { const d = document.querySelector('.hs-diff'); return d && !d.classList.contains('busy') && d.querySelector('.hs-stat, .hs-empty, .df-note'); }, { timeout: 8000 });
+  const pickRow = async (i, mods = []) => { for (const m of mods) await p.keyboard.down(m); await p.click(`.hs-item[data-i="${i}"]`); for (const m of mods) await p.keyboard.up(m); await sleep(150); await settled(); };
+
+  await p.goto(base + '?file=' + encodeURIComponent('/tests/_git_fixture/untracked.md') + '&git=1', { waitUntil: 'load' });
+  await p.waitForSelector('body[data-ready="1"]'); await sleep(300);
+  check('history button hidden for untracked file', await p.$eval('#btn-history', (e) => e.hidden));
+  await hk(); await sleep(150);
+  check('history shortcut explains when not tracked', /Git repository/.test(await p.$eval('#mk-toast', (e) => e.textContent)));
+
+  await p.goto(base + '?file=' + encodeURIComponent(FILE) + '&git=1', { waitUntil: 'load' });
+  await p.waitForSelector('body[data-ready="1"]');
+  await p.waitForSelector('#btn-history:not([hidden])', { timeout: 5000 });
+  check('history button shown for tracked file', true);
+  check('history button title', await p.$eval('#btn-history', (e) => e.title) === 'File history (Ctrl+Shift+H)');
+  check('history code not loaded until used', await p.evaluate(() => !performance.getEntriesByType('resource').some((r) => /history/.test(r.name)) && !document.querySelector('link[href="history.css"]')));
+  await hk();
+  await p.waitForSelector('#mk-history:not([hidden]) .hs-item.sel'); await settled();
+  check('ctrl+shift+h opens history', true);
+  const rows = await p.$$eval('.hs-item', (els) => els.map((e) => e.querySelector('.hs-subj').textContent));
+  check('commits listed newest first, with uncommitted entry', JSON.stringify(rows) === JSON.stringify(['Uncommitted changes', 'Add a shortcuts table', 'Clarify wording', 'Move the guide into docs/', 'Expand install steps, add Open files', 'Add the guide']), JSON.stringify(rows));
+  check('history follows the rename', /Renamed from guide\.md/.test(await p.$eval('.hs-item[data-i="3"]', (e) => e.textContent)));
+  const meta = await p.$eval('.hs-item[data-i="2"]', (e) => ({ hash: e.querySelector('.hs-hash').textContent, author: e.querySelector('.hs-author').textContent, rel: e.querySelector('.hs-date').textContent, abs: e.querySelector('.hs-abs').textContent }));
+  const expAbs = await p.evaluate(() => new Date(Date.parse('2026-10-05T14:22:00+03:00')).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }));
+  check('commit row: short hash, author, relative + local date', /^[0-9a-f]{7,}$/.test(meta.hash) && meta.author === 'Dana Levi' && /ago|week|month|day/.test(meta.rel) && meta.abs === expAbs, JSON.stringify(meta));
+  check('uncommitted changes selected first', await p.$eval('.hs-item.sel', (e) => e.classList.contains('hs-wt')) && /Unstaged/i.test(await p.$eval('.hs-item.sel', (e) => e.textContent)));
+  check('uncommitted diff with word highlight', await p.$$eval('.df-add .wd', (w) => w.some((x) => x.textContent.includes('and private'))));
+
+  await pickRow(2);
+  const u = await p.evaluate(() => ({
+    del: document.querySelectorAll('tr.df-del').length, add: document.querySelectorAll('tr.df-add').length,
+    hunk: document.querySelector('.df-hunk')?.textContent.trim(), stat: document.querySelector('.hs-stat')?.textContent,
+    nums: [...document.querySelectorAll('tr.df-del .df-ln')].map((t) => t.dataset.n).join(','),
+    words: [...document.querySelectorAll('tr.df-add .wd')].map((w) => w.textContent),
+    title: document.querySelector('.hs-dtitle').textContent,
+  }));
+  check('commit diff: unified rows, hunk header, line numbers', u.del === 3 && u.add === 3 && u.hunk.startsWith('@@ -1,12 +1,12 @@') && u.nums.startsWith('3,,8,,12,') && u.title === 'Clarify wording', JSON.stringify(u));
+  check('commit diff: +/- stats and word-level highlights', /\+3.*−3/.test(u.stat) && u.words.includes('start') && u.words.includes('onto'), JSON.stringify(u.words));
+  await p.click('.hs-mode[data-split="1"]');
+  const sp = await p.evaluate(() => ({ split: !!document.querySelector('table.df-split'), pairs: [...document.querySelectorAll('tr.df-pair')].filter((r) => r.querySelector('td.df-del') && r.querySelector('td.df-add')).length }));
+  check('split view pairs removed and added lines', sp.split && sp.pairs === 3, JSON.stringify(sp));
+  check('split preference remembered', await p.evaluate(() => localStorage.getItem('markly.history.split')) === 'true');
+  await p.click('.hs-mode[data-split="0"]');
+  check('back to unified view', await p.$$eval('table.df-split', (t) => t.length) === 0);
+
+  await pickRow(3);
+  check('rename commit shown as rename', /File renamed/.test(await p.$eval('.hs-stat', (e) => e.textContent)) && /Renamed without changes/.test(await p.$eval('.hs-diff', (e) => e.textContent)));
+  await pickRow(5);
+  check('first commit shows the file as added', /\+7.*File added/.test(await p.$eval('.hs-stat', (e) => e.textContent)), await p.$eval('.hs-stat', (e) => e.textContent));
+  await pickRow(1, ['Control']);
+  const cmpTitle = await p.$eval('.hs-dtitle', (e) => e.textContent);
+  const cmpAdds = await p.$$eval('tr.df-add', (r) => r.length);
+  check('ctrl+click compares two commits', cmpTitle === 'Comparing two commits' && cmpAdds > 8 && await p.$$eval('.hs-item.cmp', (e) => e.length) === 1, `${cmpTitle} ${cmpAdds}`);
+  await p.click('[data-act="uncompare"]'); await settled();
+  check('leave comparison', await p.$$eval('.hs-item.cmp', (e) => e.length) === 0);
+
+  await p.click('.hs-item[data-i="2"] .hs-hash'); await sleep(150);
+  const full = await clip();
+  check('copy commit hash', /^[0-9a-f]{40}$/.test(full) && full.startsWith(meta.hash), full);
+
+  // keyboard: up/down moves, Enter shows the file at that commit
+  await p.focus('.hs-list');
+  await p.keyboard.press('Home'); await p.keyboard.press('ArrowDown'); await sleep(200); await settled();
+  check('Home / arrow keys move the selection', await p.$eval('.hs-item.sel', (e) => e.dataset.i) === '1');
+  await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown'); await p.keyboard.press('ArrowDown');
+  await sleep(200); await settled();
+  await p.keyboard.press('Enter');
+  await p.waitForSelector('#mk-revbar', { timeout: 5000 }); await sleep(200);
+  const rv = await p.evaluate(() => ({ hidden: document.getElementById('mk-history').hidden, text: document.getElementById('mk-content').textContent, bar: document.getElementById('mk-revbar').textContent }));
+  check('view file at commit (rendered, read-only banner)', rv.hidden && rv.text.includes('or drop it on the window') && !rv.text.includes('Shortcuts') && /Expand install steps/.test(rv.bar) && /Read-only/i.test(rv.bar), rv.bar.replace(/\s+/g, ' '));
+  await p.click('#mk-revbar [data-act="history"]');
+  await p.waitForSelector('#mk-history:not([hidden])');
+  check('back to history keeps the selection', await p.$eval('.hs-item.sel', (e) => e.dataset.i) === '4');
+  await p.keyboard.press('Escape');
+  check('esc closes history', await p.$eval('#mk-history', (e) => e.hidden) && !!(await p.$('#mk-revbar')));
+  await p.keyboard.press('Escape'); await sleep(300);
+  check('esc returns to the current version', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('and private'));
+  await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden]) .hs-item.sel'); await settled();
+  await pickRow(2); await p.click('[data-act="view"]'); await p.waitForSelector('#mk-revbar');
+  await p.click('#mk-revbar [data-act="current"]'); await sleep(300);
+  check('return to current version button', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('Shortcuts'));
+  await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden])');
+  await p.click('#btn-history');
+  check('toolbar button closes history', await p.$eval('#mk-history', (e) => e.hidden));
+  fs.rmSync(FX, { recursive: true, force: true });
+}
 
 // sanitizer
 await p.evaluate(() => window.__marklyOpen('/tests/xss-test.md'));

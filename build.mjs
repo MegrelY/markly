@@ -26,7 +26,7 @@ fs.copyFileSync('src/theme-init.js', `${out}/theme-init.js`);
 execFileSync(process.execPath, ['tools/gen-hljs.cjs'], { stdio: 'inherit' });
 
 const opts = {
-  entryPoints: { app: 'src/app.js', style: 'src/style.css', files: 'src/files.css' },
+  entryPoints: { app: 'src/app.js', style: 'src/style.css', files: 'src/files.css', history: 'src/history.css' },
   bundle: true,
   format: 'esm',
   splitting: true,          // mermaid becomes a lazily loaded chunk
