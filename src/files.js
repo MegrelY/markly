@@ -230,8 +230,8 @@ function render({ select, keep = false } = {}) {
   const parts = [];
   if (counts[0]) parts.push(`${counts[0]} ${listing.path === '' ? (counts[0] === 1 ? 'drive' : 'drives') : (counts[0] === 1 ? 'folder' : 'folders')}`);
   if (counts[1]) parts.push(`${counts[1]} Markdown`);
-  const rest = counts[2] + counts[3];
-  if (rest) parts.push(`${rest} other${mdOnly ? ' (hidden)' : ''}`);
+  if (counts[3]) parts.push(`${counts[3]} text & code${mdOnly ? ' (hidden)' : ''}`);
+  if (counts[2]) parts.push(`${counts[2]} other${mdOnly ? ' (hidden)' : ''}`);
   statusEl.textContent = (parts.join(' · ') || 'Empty') + (listing.truncated ? ' · list cut off' : '');
   sel = -1; typeBuf = '';
   const want = select || prevSel || cur;

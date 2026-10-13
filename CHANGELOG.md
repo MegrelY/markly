@@ -1,5 +1,51 @@
 # Changelog
 
+## 1.4.0 — 2026-10-13
+
+### Added
+- **Text, code and data files.** Markly now opens more than Markdown, read-only as always:
+  - **Plain text** (`.txt`, `.log`, `.text`, and extension-less `README`, `LICENSE`, `CHANGELOG` and
+    similar): a calm reading view with wrapped lines and comfortable type. Line numbers and a
+    monospace font are a click away; logs open in monospace.
+  - **Code and config** (Python, JavaScript/TypeScript, JSON, YAML, TOML, INI/CFG/CONF/.env, HTML,
+    CSS/SCSS, XML/SVG, SQL, shell/PowerShell/batch, Rust, Go, Java, C/C++, C#, Ruby, PHP, Kotlin,
+    Swift, Lua, Dockerfile, .gitignore, .editorconfig and more): syntax highlighting with line
+    numbers, plus a Wrap toggle.
+  - **CSV/TSV** as a table in the Markdown table style. Click a column header to sort (numbers sort
+    as numbers; a third click restores file order), or switch to Raw.
+  - **HTML**: the source, or a **Preview**. The preview is sanitized like Markdown and shown in a
+    sandboxed frame. Scripts can't run, links don't go anywhere, and nothing is loaded from the
+    network (only inline styles and local images).
+  - **Formatted / Original** toggle: JSON, YAML, XML/SVG, HTML, CSS/SCSS/Less and JavaScript/TypeScript
+    are shown nicely formatted by default, like Prettier in an editor. JSON keeps its key order,
+    number text and comments (JSONC). Formatting changes only what you see, never the file. If a
+    file can't be parsed, Markly shows it as written with a short note. Files over 1 MB are shown as
+    written.
+  - **Copy formatted** in the Copy menu when the formatted view is on screen. *Copy content* still
+    copies the file exactly as it is on disk.
+  - Files over 5 MB open as plain text (no highlighting or formatting). Binary files show a short
+    "not a text file" message. UTF-8 and UTF-16 files with a byte-order mark are decoded correctly.
+  - Find, zoom, themes, auto-reload, recent files, back/forward, the window title and file history
+    (diffs and *view at this commit*) all work for these files.
+- **Folder browser**: these files can be opened from the panel too, and are listed with muted
+  per-type icons. Markdown keeps its accent colour.
+- Links from a Markdown document to these files open them in Markly.
+- Installers offer Markly in *Open with* for `.txt .log .json .yaml .yml .toml .ini .csv .xml .html
+  .htm .css .js .ts .py`. These are never made the default; Markdown registration is unchanged.
+
+### Changed
+- `.txt` files open in the plain-text view instead of being rendered as Markdown.
+
+### Performance
+- Opening a Markdown file is unchanged: the new views, formatters and their styles are separate
+  chunks that load only when such a file is opened, and Prettier's parsers load per language
+  (TypeScript uses Prettier's Babel parser rather than the 900 KB TypeScript plugin). Rendered
+  Markdown is identical to 1.3.0 (pixel-identical screenshots, identical HTML).
+
+### Fixed
+- Folder browser: after closing the panel with Esc, focus stays in the document, so keys no longer
+  reach the hidden folder list.
+
 ## 1.3.0 — 2026-10-12
 
 ### Added

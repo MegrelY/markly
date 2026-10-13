@@ -1,6 +1,7 @@
 # Markly
 
-A lightweight, beautiful Markdown viewer for Windows, Linux and macOS. Markly is a small native shell
+A lightweight, beautiful Markdown viewer for Windows, Linux and macOS. It also opens plain text, code,
+config and data files (highlighted, formatted, CSV as a table). Markly is a small native shell
 built with [Tauri 2](https://tauri.app) on top of the system web view (WebView2 on Windows, WebKitGTK on
 Linux, WKWebView on macOS), so the app itself is only a few MB. It reads files and never edits them, and
 it sends no telemetry.
@@ -10,6 +11,7 @@ it sends no telemetry.
 ![File history: the commits that changed a file, and what each one changed](docs/screenshot-history.png)
 ![The folder browser panel](docs/screenshot-folder-browser.png)
 ![The Copy menu: copy the file path or its Markdown source](docs/screenshot-copy-menu.png)
+![A JSON file, formatted and highlighted, with the folder browser](docs/screenshot-files.png)
 
 ## Download
 
@@ -17,11 +19,11 @@ From the [latest release](../../releases/latest):
 
 | Platform | File |
 |---|---|
-| Windows 10/11 x64 | `Markly_1.3.0_x64-setup.exe` (installer) or `Markly_1.3.0_x64_portable.exe` |
-| Debian / Ubuntu x64 | `Markly_1.3.0_amd64.deb` |
-| Fedora / openSUSE x64 | `Markly-1.3.0-1.x86_64.rpm` |
-| Any Linux x64 | `Markly_1.3.0_amd64.AppImage` |
-| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.3.0_universal.dmg` (unsigned) |
+| Windows 10/11 x64 | `Markly_1.4.0_x64-setup.exe` (installer) or `Markly_1.4.0_x64_portable.exe` |
+| Debian / Ubuntu x64 | `Markly_1.4.0_amd64.deb` |
+| Fedora / openSUSE x64 | `Markly-1.4.0-1.x86_64.rpm` |
+| Any Linux x64 | `Markly_1.4.0_amd64.AppImage` |
+| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.4.0_universal.dmg` (unsigned) |
 
 ## Features
 
@@ -36,7 +38,7 @@ From the [latest release](../../releases/latest):
 - Table-of-contents sidebar, find, zoom, print / Save as PDF
 - Folder browser panel on the right (Ctrl+Shift+E):
   - Shows the document's folder with breadcrumbs, an Up button and a copyable full path.
-  - Click a Markdown file to open it. Double-click a folder to go into it.
+  - Click a file to open it: Markdown (accent colour), or text, code and data files (muted, with a type icon). Double-click a folder to go into it.
   - Other files are dimmed and never opened. Hidden files are not shown.
   - Optional *only Markdown* filter, and full keyboard navigation.
   - Resizable, refreshes when the folder changes, and remembers its state.
@@ -51,11 +53,36 @@ From the [latest release](../../releases/latest):
 - Copy button next to Find: **Copy path** copies the file's full path, and **Copy content** copies the raw
   Markdown source exactly as it is on disk, not the rendered page. Ctrl+Shift+C copies the path.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
-- Relative images and links resolve from the document's folder. Links to `.md` files open in Markly
+- Relative images and links resolve from the document's folder. Links to `.md` files (and to text, code and data files) open in Markly
   (Alt+← goes back), and web links open in your default browser.
 - Reloads automatically when the file changes on disk and keeps your scroll position
 - Remembers window size, position, theme, zoom and sidebar state
 - Strips scripts and unsafe HTML from documents, and never launches executables from links
+- Also opens text, code and data files (see [Supported file types](#supported-file-types)):
+  - Highlighted code with line numbers, a readable plain-text view, CSV/TSV as a sortable table, and
+    HTML as source or a sandboxed preview.
+  - A **Formatted / Original** toggle shows JSON, YAML, XML/SVG, HTML, CSS and JS/TS nicely formatted
+    (Prettier-style) without ever changing the file. *Copy formatted* copies what you see.
+
+## Supported file types
+
+| Type | Extensions | View |
+|---|---|---|
+| Markdown | `.md` `.markdown` `.mdown` `.mkd` `.mkdn` `.mdwn` `.mdx` | Rendered document |
+| Plain text | `.txt` `.text` `.log` `.out` `.nfo` `.rst` `.adoc`, and `README`, `LICENSE`, `CHANGELOG`, `AUTHORS`, … without extension | Wrapped reading view; optional line numbers and monospace |
+| JSON | `.json` `.jsonc` `.json5` `.geojson` | Highlighted; formatted by default (key order and comments kept) |
+| YAML | `.yaml` `.yml` | Highlighted; formatted by default |
+| XML / SVG | `.xml` `.svg` `.xsd` `.xsl` `.plist` | Highlighted; formatted by default (SVG shown as text) |
+| HTML | `.html` `.htm` `.xhtml` | Source (formatted) or sandboxed Preview |
+| CSS | `.css` `.scss` `.less` | Highlighted; formatted by default |
+| JavaScript / TypeScript | `.js` `.mjs` `.cjs` `.jsx` `.ts` `.tsx` `.mts` `.cts` | Highlighted; formatted by default |
+| Config | `.toml` `.ini` `.cfg` `.conf` `.env` `.properties` `.editorconfig` `.gitignore` | Highlighted |
+| Data | `.csv` `.tsv` | Sortable table, or Raw |
+| Code | `.py` `.sql` `.sh` `.bash` `.zsh` `.ps1` `.bat` `.cmd` `.rs` `.go` `.java` `.c` `.h` `.cpp` `.hpp` `.cs` `.rb` `.php` `.kt` `.swift` `.lua` `.pl` `.r` `.diff` `.graphql` `.proto`, `Dockerfile`, `Makefile` | Highlighted with line numbers |
+
+Files over 1 MB are shown as written (not formatted), files over 5 MB as plain text, and binary files
+with a short "not a text file" note. Installers add Markly to *Open with* for `.txt .log .json .yaml
+.yml .toml .ini .csv .xml .html .htm .css .js .ts .py`, but never make it the default for them.
 
 ## Keyboard shortcuts
 
@@ -82,13 +109,13 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 
 ### Windows
 
-Run `Markly_1.3.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
+Run `Markly_1.4.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
 The installer registers Markly as an **Open with** handler for `.md`, `.markdown`, `.mdown` and `.mkd`. It does
 not take over an existing default app. To make Markly the default, right-click a `.md` file and choose
 *Open with → Choose another app → Markly → Always*, or use *Settings → Apps → Default apps → Markly*.
 If no app was registered for `.md` before, Markly becomes the handler.
 
-There is also a portable option: `Markly_1.3.0_x64_portable.exe` runs without installing, but it
+There is also a portable option: `Markly_1.4.0_x64_portable.exe` runs without installing, but it
 does not register file associations.
 
 The binaries are not code-signed, so Windows SmartScreen may warn you the first time.
@@ -96,9 +123,9 @@ Click **More info → Run anyway**.
 
 ### Linux
 
-- Debian/Ubuntu: `sudo apt install ./Markly_1.3.0_amd64.deb`
-- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.3.0-1.x86_64.rpm` (or `zypper install`)
-- AppImage: `chmod +x Markly_1.3.0_amd64.AppImage && ./Markly_1.3.0_amd64.AppImage file.md`.
+- Debian/Ubuntu: `sudo apt install ./Markly_1.4.0_amd64.deb`
+- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.4.0-1.x86_64.rpm` (or `zypper install`)
+- AppImage: `chmod +x Markly_1.4.0_amd64.AppImage && ./Markly_1.4.0_amd64.AppImage file.md`.
   It is large (~105 MB) because it bundles WebKitGTK. Prefer the deb/rpm where possible.
 
 The deb and rpm install `markly` to `/usr/bin` and a desktop entry for `text/markdown`, so Markly shows
@@ -213,9 +240,9 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appi
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin && cargo tauri build --target universal-apple-darwin`.
 
 **CI / releases:** `.github/workflows/ci.yml` builds every push and pull request on all three
-platforms. Pushing a tag such as `v1.3.0` runs `.github/workflows/release.yml`, which creates a GitHub
+platforms. Pushing a tag such as `v1.4.0` runs `.github/workflows/release.yml`, which creates a GitHub
 release with the Windows installer and portable exe, the Linux deb/rpm/AppImage and the macOS dmg.
-To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.3.0`. It reuses
+To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.4.0`. It reuses
 that tag's release, whether it is a draft or published, and replaces assets that have the same names.
 
 Frontend only: `npm run build` (writes `dist-web/`). Then:
@@ -247,6 +274,17 @@ tools/          screenshot, interaction test and benchmark scripts
 ## Version history
 
 All releases so far, newest first. See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+### 1.4.0 — 2026-10-13
+- **Text, code and data files**, read-only like Markdown:
+  - Plain text in a readable, wrapped view; extension-less README/LICENSE files too.
+  - Highlighted code and config with line numbers, for 40+ languages.
+  - CSV/TSV as a sortable table, and HTML as source or a sandboxed, script-free preview.
+  - A Formatted / Original toggle (Prettier-style) for JSON, YAML, XML/SVG, HTML, CSS and JS/TS. It
+    never changes the file. *Copy formatted* copies what you see.
+  - Openable from the folder browser, and offered in *Open with* (never as the default).
+- Opening Markdown is as fast as before: all of this loads only when such a file is opened.
+- Fix: closing the folder browser with Esc no longer leaves focus in the hidden list.
 
 ### 1.3.0 — 2026-10-12
 - **File history** for files tracked in Git (History button or Ctrl+Shift+H):
