@@ -1,0 +1,1 @@
+{"name":"markly","version":"1.4.0","zeta":1,"alpha":[1,2,3],"nested":{"deep":{"x":true,"y":null}},"big":12345678901234567890,"price":1.50,"list":[{"id":1,"tags":["a","b"]},{"id":2,"tags":[]}],"empty":{}}

@@ -1,0 +1,8 @@
+# Cargo-like config
+[package]
+name = "markly"
+version = "1.4.0"
+authors = ["Yosef Megrel"]
+
+[features]
+default = ["viewer"]

@@ -1,0 +1,8 @@
+name:    markly
+version:   "1.4.0"
+features: [ text,   code,
+   csv ]
+build:
+    targets:
+      -   windows
+      -    linux

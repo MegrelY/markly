@@ -1,0 +1,6 @@
+Release notes for testing
+
+Markly 1.4 opens plain text files in a calm, readable view. Long lines wrap at a comfortable width so a paragraph like this one never needs horizontal scrolling, even when it goes on for quite a while and includes several sentences.
+
+  Indented lines keep their indentation.
+Tabs	stay	tabs.

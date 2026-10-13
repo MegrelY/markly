@@ -1,0 +1,5 @@
+// settings
+{
+  "editor.tabSize": 2, // two
+  "files.exclude": {"**/.git": true,},
+}

@@ -40,6 +40,8 @@ button.fb-crumb:hover { background: var(--surface-2); color: var(--text-strong);
 .fb-item.dir svg, .fb-item.drive svg { color: var(--muted); fill: color-mix(in srgb, var(--muted) 14%, transparent); }
 .fb-item.md { cursor: pointer; }
 .fb-item.md .fb-name, .fb-item.md svg { color: var(--accent); }
+.fb-item.view { cursor: pointer; }
+.fb-item.view .fb-name { color: var(--text); }
 .fb-item.other { opacity: .5; }
 .fb-item.sel { box-shadow: inset 0 0 0 1px var(--border-strong); }
 .fb-list:focus-visible .fb-item.sel, .fb-list:focus .fb-item.sel { box-shadow: inset 0 0 0 1.5px var(--accent); }

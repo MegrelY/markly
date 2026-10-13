@@ -1,6 +1,7 @@
 import { host } from './host.js';
-import { renderMarkdown, renderMermaid, renderMath, attachSources } from './render.js';
-import { resolvePath, splitHash, isMarkdownPath, basename, dirname } from './path.js';
+import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview } from './render.js';
+import { resolvePath, splitHash, basename, dirname } from './path.js';
+import { fileType, isMarkdownPath, isViewable } from './filetypes.js';
 
 const $ = (id) => document.getElementById(id);
 const root = document.documentElement;
@@ -201,7 +202,11 @@ function toggleCopyMenu() {
   if (!open) return;
   const lines = countLines(current.content);
   $('copy-path-sub').textContent = current.path;
-  $('copy-content-sub').textContent = `Markdown source · ${lines.toLocaleString()} ${lines === 1 ? 'line' : 'lines'}`;
+  const what = current.view ? `${current.view.label} file` : 'Markdown source';
+  $('copy-content-sub').textContent = `${what} · ${lines.toLocaleString()} ${lines === 1 ? 'line' : 'lines'}`;
+  const fmt = current.view && viewerMod?.formattedText();
+  $('copy-formatted').hidden = !fmt;
+  if (fmt) { const n = countLines(fmt); $('copy-formatted-sub').textContent = `As shown · ${n.toLocaleString()} ${n === 1 ? 'line' : 'lines'}`; }
   copyMenu.hidden = false;
   copyBtn.setAttribute('aria-expanded', 'true');
 }
@@ -227,23 +232,40 @@ let copyDoneTimer;
 async function copyFromDoc(kind) {
   closeMenus();
   if (!current) return;
-  const ok = await writeClipboard(kind === 'path' ? current.path : current.content);
+  const text = kind === 'path' ? current.path : kind === 'formatted' ? viewerMod?.formattedText() : current.content;
+  if (text == null) return;
+  const ok = await writeClipboard(text);
   if (!ok) { toast("Couldn't copy to the clipboard"); return; }
   copyBtn.classList.add('done');
   clearTimeout(copyDoneTimer);
   copyDoneTimer = setTimeout(() => copyBtn.classList.remove('done'), 1400);
-  toast(kind === 'path' ? 'Copied path' : 'Copied Markdown source', 1600);
+  toast(kind === 'path' ? 'Copied path' : kind === 'formatted' ? 'Copied formatted text' : current.view ? 'Copied file content' : 'Copied Markdown source', 1600);
 }
 copyBtn.onclick = (e) => { e.stopPropagation(); toggleCopyMenu(); };
 $('copy-path').onclick = () => copyFromDoc('path');
 $('copy-content').onclick = () => copyFromDoc('content');
+$('copy-formatted').onclick = () => copyFromDoc('formatted');
+
+// ---------------------------------------------------------------- text, code & data files (lazy)
+let viewerP = null, viewerMod = null;
+function loadViewer() {
+  viewerP ||= import('./viewer.js').then(async (m) => {
+    await m.init({
+      LS, highlightCode, sanitizePreview, assetUrl: host.assetUrl,
+      changed: () => { if (findState.open && findState.query) runFind(findState.query, false); },
+    });
+    viewerMod = m;
+    return m;
+  });
+  return viewerP;
+}
 
 // ---------------------------------------------------------------- folder browser (lazy)
 let filesP = null;
 function loadFiles() {
   filesP ||= import('./files.js').then(async (m) => {
     await m.init({
-      host, LS, toast, isMarkdownPath, dirname,
+      host, LS, toast, isMarkdownPath, isViewable, fileType, dirname,
       openFile: (p) => openFile(p),
       getCurrent: () => current,
       copyText: writeClipboard,
@@ -323,7 +345,7 @@ async function openFile(path, opts = {}) {
   let doc;
   try {
     // A revision (file history) is the given content shown under the same file.
-    doc = opts.revision && current ? { ...current, content: opts.revision.content, revision: opts.revision } : await host.read(path);
+    doc = opts.revision && current ? { ...current, content: opts.revision.content, revision: opts.revision, size: undefined, binary: false } : await host.read(path);
   } catch (err) {
     if (silent) throw err;
     if (seq !== loadSeq) return false;
@@ -334,9 +356,16 @@ async function openFile(path, opts = {}) {
   }
   if (seq !== loadSeq) return false;
   const t0 = performance.now();
+  // Anything that isn't Markdown (or isn't text at all) goes to the lazily loaded viewer. Files of an
+  // unknown type that are opened anyway (Open dialog, drag and drop) are shown as plain text.
+  const type = fileType(doc.path) || { kind: 'text', label: 'Text', ext: '' };
+  doc.view = type.kind === 'md' && !doc.binary ? null : type.kind === 'md' ? { ...type, kind: 'text' } : type;
   // Rendering may first fetch the highlight.js grammars / YAML parser the document needs.
-  const rendered = await renderMarkdown(doc.content, { baseDir: doc.dir, assetUrl: host.assetUrl });
+  const rendered = doc.view
+    ? { html: await (await loadViewer()).render(doc, doc.view) }
+    : await renderMarkdown(doc.content, { baseDir: doc.dir, assetUrl: host.assetUrl });
   if (seq !== loadSeq) return false; // a newer open/reload superseded this one
+  if (!doc.view && viewerMod) viewerMod.clear();
 
   const wasRevision = !!current?.revision;
   if (history && current && current.path !== doc.path) { back.push({ path: current.path, top: scroller.scrollTop }); fwd.length = 0; }
@@ -347,8 +376,7 @@ async function openFile(path, opts = {}) {
 
   delete document.body.dataset.ready;
   content.innerHTML = rendered.html;
-  attachSources(content, rendered.sources);
-  postProcess();
+  if (!doc.view) { attachSources(content, rendered.sources); postProcess(); }
   welcome.hidden = true;
   root.classList.remove('no-doc');
   $('doc-title').querySelector('.doc-name').textContent = doc.name;
@@ -370,7 +398,7 @@ async function openFile(path, opts = {}) {
   if (findState.open && findState.query) runFind(findState.query, false);
   revealWindow();
   scroller.focus({ preventScroll: true });
-  Promise.all([renderMath(content), renderMermaid(content, isDark())])
+  Promise.all(doc.view ? [] : [renderMath(content), renderMermaid(content, isDark())])
     .catch((e) => console.error(e))
     .finally(() => {
       if (seq !== loadSeq) return;
@@ -418,6 +446,7 @@ function goForward() {
 
 // ---------------------------------------------------------------- links & copy
 content.addEventListener('click', async (e) => {
+  if (viewerMod && e.target.closest('.vw-bar button, .vw-sort')) { viewerMod.click(e, content); return; }
   const copy = e.target.closest('.code-copy');
   if (copy) {
     const code = copy.closest('.code-block')?.querySelector('code');
@@ -441,7 +470,7 @@ content.addEventListener('click', async (e) => {
   const [p, hash] = splitHash(href);
   const target = p ? resolvePath(current.dir, p) : current.path;
   if (!p) { scrollToId(hash); return; }
-  if (isMarkdownPath(target)) openFile(target, { hash });
+  if (isViewable(target)) openFile(target, { hash });
   else if (UNSAFE_EXT.test(target)) toast(`Blocked: Markly won't launch programs or scripts from documents (${basename(target)})`, 4500);
   else host.openPath(target).catch((err) => toast(`Could not open ${basename(target)}: ${err}`));
 });
@@ -477,7 +506,7 @@ function runFind(q, jump) {
   if (!q) { $('find-count').textContent = ''; return; }
   const needle = q.toLocaleLowerCase();
   const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => (n.parentElement.closest('.katex-mathml, .heading-anchor, svg style') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+    acceptNode: (n) => (n.parentElement.closest('.katex-mathml, .heading-anchor, svg style, .vw-bar') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
   });
   let n;
   while ((n = walker.nextNode())) {

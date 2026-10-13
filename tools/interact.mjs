@@ -94,7 +94,7 @@ check('alt+left goes back', true);
 check('copy enabled with a file', await p.$eval('#btn-copy', (e) => !e.disabled));
 check('copy button next to find', await p.$eval('#btn-find', (e) => e.nextElementSibling?.querySelector('#btn-copy') !== null));
 await p.click('#btn-copy');
-check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && e.querySelectorAll('.copy-item').length === 2));
+check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && e.querySelectorAll('.copy-item:not([hidden])').length === 2));
 check('copy menu shows path', (await p.$eval('#copy-path-sub', (e) => e.textContent)) === '/samples/showcase.md');
 await p.click('#copy-path');
 await sleep(100);
@@ -156,13 +156,16 @@ check('current file highlighted', (await p.$eval('#mk-files .fb-item.current .fb
 check('markdown files accent', await p.$eval('#mk-files .fb-item.md:not(.current) .fb-name', (e) => { const t = document.createElement('span'); t.style.color = 'var(--accent)'; document.body.appendChild(t); const accent = getComputedStyle(t).color; t.remove(); return getComputedStyle(e).color === accent; }));
 await p.click('#mk-files .fb-item.dir');
 check('single click on folder only selects', (await fb.path()) === '/samples' && (await fb.sel()) === 'images');
+fs.writeFileSync(path.join(ROOT, 'samples/images/.tmp-photo.png'.replace('.tmp', 'tmp')), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0]));
 await p.click('#mk-files .fb-item.dir', { count: 2 });
 await fb.waitPath('/samples/images');
+check('viewable files (svg) openable, muted with a type icon', await p.$eval('#mk-files .fb-item.view', (e) => e.textContent === 'banner.svg' && getComputedStyle(e).opacity === '1' && getComputedStyle(e).cursor === 'pointer' && !!e.querySelector('svg circle, svg path')));
 check('double click enters folder', true);
 check('other files dimmed', await p.$eval('#mk-files .fb-item.other', (e) => +getComputedStyle(e).opacity < 0.7));
 await p.click('#mk-files .fb-item.other', { count: 2 });
 await sleep(300);
 check('other files never opened', (await p.title()).startsWith('showcase.md'));
+fs.rmSync(path.join(ROOT, 'samples/images/tmp-photo.png'));
 await p.click('#mk-files .fb-up');
 await fb.waitPath('/samples');
 check('up button returns and selects folder', (await fb.sel()) === 'images');
@@ -338,6 +341,132 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await p.click('#btn-history');
   check('toolbar button closes history', await p.$eval('#mk-history', (e) => e.hidden));
   fs.rmSync(FX, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------- 1.4: text, code & data files
+{
+  const F = '/tests/files/';
+  const open = async (f) => { await p.evaluate((x) => window.__marklyOpen(x), F + f); await p.waitForFunction(() => document.querySelector('#mk-content .vw'), { timeout: 8000 }); await sleep(150); };
+  const st = () => p.evaluate(() => ({
+    title: document.title, bar: document.querySelector('.vw-bar')?.textContent.replace(/\s+/g, ' ').trim() || '',
+    text: document.querySelector('.vw-body')?.innerText || '', lines: document.querySelectorAll('.vw-lines .vl').length,
+    nums: !!document.querySelector('.vw-lines.nums'), hl: document.querySelectorAll('.vw-body .hljs-keyword, .vw-body .hljs-string, .vw-body .hljs-attr').length,
+  }));
+  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (k.includes('view.')) localStorage.removeItem(k); });
+  const bundleBefore = await p.evaluate(() => performance.getEntriesByType('resource').map((r) => r.name).filter((n) => /viewer|format|standalone|babel/.test(n)).length);
+  check('viewer not loaded for Markdown', bundleBefore === 0, String(bundleBefore));
+
+  await open('notes.txt'); let v = await st();
+  check('txt: readable text view (wrapped, prose font, no numbers)', v.title === 'notes.txt — Markly' && /Text/.test(v.bar) && !v.nums && await p.$eval('.vw-lines', (e) => e.classList.contains('prose') && getComputedStyle(e.querySelector('code')).whiteSpace === 'pre-wrap'), v.bar);
+  await p.click('[data-tog="textLines"]'); await p.waitForSelector('.vw-lines.nums');
+  check('txt: line numbers toggle', (await st()).lines === 6);
+  await p.click('[data-tog="textLines"]'); await p.waitForSelector('.vw-lines:not(.nums)');
+  await open('README'); check('extensionless README opens as text', /Text/.test((await st()).bar));
+  check('copy menu labels the file type', await (async () => { await p.click('#btn-copy'); const t = await p.$eval('#copy-content-sub', (e) => e.textContent); await p.keyboard.press('Escape'); return t.startsWith('Text file'); })());
+
+  await open('sample.py'); v = await st();
+  check('py: highlighted code with line numbers', v.nums && v.hl > 3 && v.lines === 22 && /Python/.test(v.bar), `${v.lines} lines, ${v.hl} tokens`);
+  check('py: blank lines are not copied as characters', !v.text.includes('\u200b'));
+  check('py: line numbers are not part of the text', !/^1/.test(v.text) && v.text.startsWith('"""Tiny'));
+  await p.click('[data-tog="wrap"]'); await p.waitForSelector('.vw-lines.wrap');
+  check('code: wrap toggle', true);
+  await p.click('[data-tog="wrap"]'); await p.waitForSelector('.vw-lines:not(.wrap)');
+
+  await open('data.json'); v = await st();
+  check('json: pretty-printed by default, key order and number text kept', v.bar.includes('Formatted') && v.text.indexOf('"zeta"') < v.text.indexOf('"alpha"') && v.text.includes('12345678901234567890') && v.text.includes('"price": 1.50') && v.lines === 25, `${v.lines}`);
+  await p.click('#btn-copy'); await p.waitForSelector('#copy-formatted:not([hidden])');
+  await p.click('#copy-formatted'); await sleep(150);
+  const fmtClip = await clip();
+  check('copy formatted copies the formatted text', fmtClip.startsWith('{\n  "name": "markly"'));
+  await p.click('#btn-copy'); await p.click('#copy-content'); await sleep(150);
+  check('copy content copies the file as on disk', (await clip()) === fs.readFileSync(path.join(ROOT, 'tests/files/data.json'), 'utf8'));
+  await p.click('[data-seg="fmt"][data-val="original"]'); await p.waitForSelector('[data-seg="fmt"][data-val="original"][aria-pressed="true"]');
+  v = await st();
+  check('formatted/original toggle shows the file as written', v.lines === 1 && v.text.startsWith('{"name":"markly"'));
+  await p.click('#btn-copy'); check('copy formatted hidden in the original view', await p.$eval('#copy-formatted', (e) => e.hidden)); await p.keyboard.press('Escape');
+  await open('min.js'); check('original view is remembered', (await st()).lines === 2);
+  await p.click('[data-seg="fmt"][data-val="formatted"]'); await p.waitForSelector('[data-seg="fmt"][data-val="formatted"][aria-pressed="true"]');
+  check('js: formatted with Prettier', (await st()).text.includes('function f(x) {\n  if (x) {'));
+  await open('app.ts'); check('ts: formatted (babel-ts)', (await st()).text.includes('interface User {\n  id: number;'));
+  await open('style.css'); check('css: formatted', (await st()).text.startsWith('.a {\n  color: red;'));
+  await open('messy.yaml'); check('yaml: formatted', (await st()).text.includes('features: [text, code, csv]'));
+  await open('icon.svg'); check('svg: formatted as XML', (await st()).text.includes('\n  <g id="x">\n    <rect'));
+  await open('config.toml'); v = await st(); check('toml: shown as written (no formatter), highlighted', !v.bar.includes('Formatted') && v.hl >= 1 && /TOML/.test(v.bar), v.bar);
+  await open('broken.json'); v = await st();
+  check('parse error: original with a subtle note', /couldn't format it/.test(v.bar) && v.text.startsWith('{"ok": true,'), v.bar);
+  await open('bad.xml'); check('xml parse error note', /line 1/.test((await st()).bar));
+  await open('settings.jsonc'); check('jsonc: comments kept, trailing commas tolerated', (await st()).text.includes('"editor.tabSize": 2, // two'));
+  await open('Dockerfile'); check('Dockerfile highlighted', (await st()).hl >= 1);
+
+  // CSV
+  await open('data.csv');
+  const col = (i) => p.$$eval('.vw-table tbody tr', (rows, i) => rows.map((r) => r.children[i].textContent), i);
+  check('csv: table with header', (await p.$$eval('.vw-table thead th', (a) => a.length)) === 5 && (await col(1)).includes('Paris, Île-de-France'));
+  check('csv: reuses the Markdown table style', await p.$eval('.vw-table', (t) => !!t.closest('.table-wrap')));
+  await p.click('.vw-sort[data-col="2"]'); await sleep(100);
+  check('csv: sort numbers ascending', JSON.stringify(await col(3)) === JSON.stringify(['53,151', '290,306', '467,875', '2,102,650', '3,850,809']), (await col(3)).join('|'));
+  await p.click('.vw-sort[data-col="2"]'); await sleep(100);
+  check('csv: sort descending', (await col(3))[0] === '3,850,809');
+  await p.click('.vw-sort[data-col="2"]'); await sleep(100);
+  check('csv: third click restores file order', (await col(1))[0] === 'Tel Aviv');
+  await p.click('.vw-sort[data-col="0"]'); await sleep(100);
+  check('csv: sort text', (await col(1))[0] === 'Berlin' && await p.$eval('th[aria-sort="ascending"]', (e) => !!e));
+  await p.click('[data-seg="csv"][data-val="raw"]'); await p.waitForSelector('.vw-lines');
+  check('csv: raw toggle', (await st()).text.startsWith('City,Country'));
+  await p.click('[data-seg="csv"][data-val="table"]'); await p.waitForSelector('.vw-table');
+  await open('scores.tsv'); check('tsv: tab separated', (await col(2)).join() === 'carol,alice,bob');
+
+  // find inside a code view, not in the toolbar
+  await open('sample.py');
+  await p.keyboard.down('Control'); await p.keyboard.press('f'); await p.keyboard.up('Control');
+  await p.$eval('#find-input', (e) => { e.value = ''; }); await p.type('#find-input', 'line'); await sleep(350);
+  check('find skips the view toolbar', (await p.$eval('#find-count', (e) => e.textContent)) === 'No results');
+  await p.$eval('#find-input', (e) => { e.value = ''; }); await p.type('#find-input', 'items'); await sleep(350);
+  check('find works in code', (await p.$eval('#find-count', (e) => e.textContent)) === '1 / 2');
+  await p.keyboard.press('Escape');
+
+  // HTML: source and sandboxed preview
+  const external = [];
+  // (CSP-blocked loads still show up as 'request' events; a response means one actually went out)
+  const onReq = (r) => { if (!r.url().startsWith('http://localhost') && !r.url().startsWith('data:')) external.push(r.url()); };
+  p.on('response', onReq);
+  await open('page.html'); v = await st();
+  check('html: source view (formatted) by default', v.bar.includes('Source') && v.text.includes('<h1>Hello from HTML</h1>') && !(await p.$('iframe')));
+  await p.click('[data-seg="html"][data-val="preview"]'); await p.waitForSelector('iframe.vw-frame'); await sleep(800);
+  const fr = await p.$eval('iframe.vw-frame', (f) => ({ sandbox: f.getAttribute('sandbox'), src: f.getAttribute('srcdoc') }));
+  check('html preview: sandboxed frame without scripts', fr.sandbox === '' && !/<script|onerror|onclick|javascript:|<iframe|<form|<base|<link|http-equiv="refresh"/i.test(fr.src.replace(/http-equiv="Content-Security-Policy"/, '')), fr.src.length);
+  check('html preview: styles and content kept', fr.src.includes('.box{border') && fr.src.includes('<h1>Hello from HTML</h1>'));
+  check('html preview: links neutralized', !/href=/.test(fr.src));
+  check('html preview: CSP blocks network loads', fr.src.includes("default-src 'none'"));
+  check('html preview: nothing ran', !(await p.evaluate(() => window.__pwned)) && !(await p.$eval('iframe.vw-frame', (f) => { try { return !!f.contentWindow.document; } catch { return false; } })));
+  check('html preview: no request left the machine', external.length === 0, external.join(' '));
+  p.off('response', onReq);
+  await p.click('[data-seg="html"][data-val="source"]'); await p.waitForSelector('.vw-lines');
+
+  // binary, encodings, big files
+  await open('blob.bin');
+  check('binary file: friendly message', await p.$eval('.vw-binary', (e) => /Not a text file/.test(e.textContent)));
+  await open('utf16.txt'); check('UTF-16 (BOM) decoded', (await st()).text.trim() === 'Hi UTF-16');
+  await open('bom.txt'); check('UTF-8 BOM stripped', (await st()).text.startsWith('BOM text'));
+  const big = path.join(ROOT, 'tests/files/.big.log');
+  fs.writeFileSync(big, 'line of a big log file with some words in it\n'.repeat(130000));
+  const bigJson = path.join(ROOT, 'tests/files/.big.json');
+  fs.writeFileSync(bigJson, JSON.stringify(Array.from({ length: 60000 }, (_, i) => ({ i, name: 'item ' + i }))));
+  const t0 = Date.now(); await open('.big.log'); const bigMs = Date.now() - t0; v = await st();
+  check('file over 5 MB: plain text, no highlighting', /Large file/.test(v.bar) && v.hl === 0, `${(fs.statSync(big).size / 1e6).toFixed(1)} MB in ${bigMs} ms`);
+  await open('.big.json'); v = await st();
+  check('file over 1 MB: shown as written', /over 1 MB/.test(v.bar) && v.lines === 1, v.bar);
+  fs.rmSync(big); fs.rmSync(bigJson);
+
+  // links from Markdown open viewable files in Markly; folder browser
+  fs.writeFileSync(path.join(ROOT, 'tests/files/links.md'), '# Links\n\n[the data](data.json) and [script](sample.py)\n');
+  await p.evaluate((x) => window.__marklyOpen(x), F + 'links.md'); await p.waitForSelector('body[data-ready="1"]');
+  await p.click('#mk-content a[href="sample.py"]'); await p.waitForFunction(() => document.title.startsWith('sample.py'), { timeout: 5000 }).catch(() => {});
+  check('link to a code file opens it in Markly', (await p.title()) === 'sample.py — Markly');
+  await p.keyboard.down('Alt'); await p.keyboard.press('ArrowLeft'); await p.keyboard.up('Alt');
+  await p.waitForFunction(() => document.title.startsWith('links.md'), { timeout: 5000 }).catch(() => {});
+  check('back returns to the Markdown file (rendered)', (await p.title()) === 'links.md — Markly' && !(await p.$('.vw')));
+  fs.rmSync(path.join(ROOT, 'tests/files/links.md'));
 }
 
 // sanitizer

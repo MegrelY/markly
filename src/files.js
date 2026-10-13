@@ -2,7 +2,7 @@
 // files.css), so it costs nothing at start-up while closed.
 // Path helpers come from the app via init() (importing path.js here would split it into a shared
 // chunk and add a request at start-up).
-let isMarkdownPath, dirname;
+let isMarkdownPath, fileType, dirname;
 
 const DEFAULT_W = 300, MIN_W = 200, MAX_W = 640;
 // Explicit locale: some web views run with a POSIX locale whose collation is case-sensitive.
@@ -17,7 +17,14 @@ const ICONS = {
   drive: '<svg viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="10" rx="2"/><path d="M7 13.5h.01M10 13.5h.01"/></svg>',
   md: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M8.8 16.5v-4.2l1.6 1.9 1.6-1.9v4.2M14.6 12.3v4.2m-1.3-1.3 1.3 1.3 1.3-1.3"/></svg>',
   other: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/></svg>',
+  // files Markly views itself (text, code, data): muted, one glyph per kind
+  text: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M9 12.5h6M9 15.5h6M9 18h3.5"/></svg>',
+  code: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M10.5 12.5 8.8 14.5l1.7 2M13.5 12.5l1.7 2-1.7 2"/></svg>',
+  csv: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M8.5 12h7v6h-7zM8.5 15h7M12 12v6"/></svg>',
+  json: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M10.5 12c-1.2 0-1 1.2-1 2s-.5 1-1 1c.5 0 1 .2 1 1s-.2 2 1 2M13.5 12c1.2 0 1 1.2 1 2s.5 1 1 1c-.5 0-1 .2-1 1s.2 2-1 2"/></svg>',
+  html: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/><circle cx="12" cy="15" r="3.2"/><path d="M8.8 15h6.4M12 11.8c1 1 1 5.4 0 6.4M12 11.8c-1 1-1 5.4 0 6.4"/></svg>',
 };
+const openable = (en) => en.kind === 'md' || en.kind === 'view';
 
 let ctx, root, panel, listEl, pathEl, crumbsEl, upBtn, copyBtn, filterBtn, statusEl, toggleBtn;
 let listing = null;        // last listing shown: { path, parent, crumbs, entries, truncated }
@@ -41,7 +48,7 @@ function loadCss() {
 
 export async function init(c) {
   ctx = c; root = document.documentElement;
-  ({ isMarkdownPath, dirname } = c);
+  ({ isMarkdownPath, fileType, dirname } = c);
   mdOnly = ctx.LS.get('files.mdOnly', false);
   width = +ctx.LS.get('files.width', DEFAULT_W) || DEFAULT_W;   // preferred width; clamped when applied
   toggleBtn = document.getElementById('btn-files');
@@ -86,7 +93,7 @@ export async function init(c) {
   listEl.addEventListener('click', (e) => {
     const it = e.target.closest('.fb-item'); if (!it) return;
     const i = +it.dataset.i; setSel(i);
-    if (view[i].kind === 'md') openEntry(view[i]);
+    if (openable(view[i])) openEntry(view[i]);
   });
   listEl.addEventListener('dblclick', (e) => {
     const it = e.target.closest('.fb-item'); if (!it) return;
@@ -187,7 +194,8 @@ function refresh() { if (listing) navigate(listing.path, { keep: true }); }
 function kindOf(en) {
   if (listing.path === '' && en.dir) return 'drive';
   if (en.dir) return 'dir';
-  return isMarkdownPath(en.name) ? 'md' : 'other';
+  if (isMarkdownPath(en.name)) return 'md';
+  return fileType(en.name) ? 'view' : 'other';
 }
 
 function renderHead(path, parentAvailable) {
@@ -201,7 +209,7 @@ function render({ select, keep = false } = {}) {
   const prevSel = keep && sel >= 0 ? view[sel]?.path : null;
   const prevTop = listEl.scrollTop;
   const cur = ctx.getCurrent()?.path;
-  const all = listing.entries.map((en) => ({ ...en, kind: kindOf(en) }))
+  const all = listing.entries.map((en) => { const kind = kindOf(en); return { ...en, kind, icon: kind === 'view' ? fileType(en.name).kind : kind }; })
     .sort((a, b) => (b.dir - a.dir) || byName(a.name, b.name));
   view = mdOnly ? all.filter((en) => en.dir || en.kind === 'md') : all;
   renderHead(listing.path, listing.parent != null);
@@ -214,15 +222,16 @@ function render({ select, keep = false } = {}) {
     listEl.innerHTML = `<div class="fb-empty">${listing.entries.length ? 'No Markdown files in this folder' : 'This folder is empty'}</div>`;
   } else {
     listEl.innerHTML = view.map((en, i) => {
-      const title = en.kind === 'other' ? `${en.name} — not a Markdown file` : en.dir ? `${en.name} — double-click to open` : en.name;
-      return `<div class="fb-item ${en.kind}${cur && samePath(en.path, cur) ? ' current' : ''}" role="option" id="fb-i${i}" data-i="${i}" aria-selected="false" title="${esc(title)}">${ICONS[en.kind]}<span class="fb-name">${esc(en.name)}</span></div>`;
+      const title = en.kind === 'other' ? `${en.name} — Markly doesn't open this type` : en.kind === 'view' ? `${en.name} — ${fileType(en.name).label}` : en.dir ? `${en.name} — double-click to open` : en.name;
+      return `<div class="fb-item ${en.kind}${cur && samePath(en.path, cur) ? ' current' : ''}" role="option" id="fb-i${i}" data-i="${i}" aria-selected="false" title="${esc(title)}">${ICONS[en.icon]}<span class="fb-name">${esc(en.name)}</span></div>`;
     }).join('');
   }
-  const counts = all.reduce((a, en) => { a[en.dir ? 0 : en.kind === 'md' ? 1 : 2]++; return a; }, [0, 0, 0]);
+  const counts = all.reduce((a, en) => { a[en.dir ? 0 : en.kind === 'md' ? 1 : en.kind === 'view' ? 3 : 2]++; return a; }, [0, 0, 0, 0]);
   const parts = [];
   if (counts[0]) parts.push(`${counts[0]} ${listing.path === '' ? (counts[0] === 1 ? 'drive' : 'drives') : (counts[0] === 1 ? 'folder' : 'folders')}`);
   if (counts[1]) parts.push(`${counts[1]} Markdown`);
-  if (counts[2]) parts.push(`${counts[2]} other${mdOnly ? ' (hidden)' : ''}`);
+  const rest = counts[2] + counts[3];
+  if (rest) parts.push(`${rest} other${mdOnly ? ' (hidden)' : ''}`);
   statusEl.textContent = (parts.join(' · ') || 'Empty') + (listing.truncated ? ' · list cut off' : '');
   sel = -1; typeBuf = '';
   const want = select || prevSel || cur;
@@ -277,7 +286,7 @@ async function openEntry(en) {
 function activate(i) {
   const en = view[i]; if (!en) return;
   if (en.dir) enter(en);
-  else if (en.kind === 'md') openEntry(en);
+  else if (openable(en)) openEntry(en);
 }
 
 function onKey(e) {

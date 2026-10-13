@@ -125,17 +125,19 @@ const PURIFY = {
 
 const fenceLang = (t) => ((t.info ? md.utils.unescapeAll(t.info).trim() : '').split(/\s+/)[0] || '').toLowerCase();
 
+function addLang(need, lang) {
+  const name = HL_NAMES[ALIAS[lang] || lang];
+  if (name) { need.add(name); for (const d of HL_DEPS[name] || []) need.add(d); }
+}
+
 /** Loads highlight.js grammars (plus the grammars they embed) and js-yaml as the tokens require. */
-async function ensureDeps(tokens) {
+async function ensureDeps(tokens, extra = []) {
   const need = new Set();
   let yaml = false;
+  for (const l of extra) addLang(need, l);
   for (const t of tokens) {
     if (t.type === 'front_matter') yaml = true;
-    else if (t.type === 'fence') {
-      const lang = fenceLang(t);
-      const name = HL_NAMES[ALIAS[lang] || lang];
-      if (name) { need.add(name); for (const d of HL_DEPS[name] || []) need.add(d); }
-    }
+    else if (t.type === 'fence') addLang(need, fenceLang(t));
   }
   const jobs = [];
   if (yaml && !yamlLoad) jobs.push(import('js-yaml').then((m) => { yamlLoad = m.load; }));
@@ -162,6 +164,37 @@ export async function renderMarkdown(src, { baseDir = '', assetUrl = (p) => p } 
   sources.length = 0;
   const html = DOMPurify.sanitize(md.renderer.render(tokens, md.options, env), PURIFY);
   return { html, sources: sources.splice(0) };
+}
+
+/** Highlights a whole file (text/code views); loads the grammar first. Returns HTML. */
+export async function highlightCode(code, lang) {
+  await ensureDeps([], [lang]);
+  const l = ALIAS[lang] || lang;
+  if (!hljs || !hljs.getLanguage(l)) return esc(code);
+  try { return hljs.highlight(code, { language: l, ignoreIllegals: true }).value; } catch { return esc(code); }
+}
+
+// --- HTML file preview: a whole document, sanitized like Markdown, shown in a sandboxed frame ---
+const PREVIEW = {
+  WHOLE_DOCUMENT: true,
+  ALLOWED_URI_REGEXP: PURIFY.ALLOWED_URI_REGEXP,
+  ADD_TAGS: ['style'],
+  FORBID_TAGS: ['script', 'iframe', 'frame', 'frameset', 'object', 'embed', 'applet', 'base', 'meta', 'link', 'form', 'portal', 'noscript', 'template'],
+  FORBID_ATTR: ['srcdoc', 'action', 'formaction', 'ping', 'http-equiv'],
+  ADD_ATTR: ['align'],
+};
+let previewing = false;
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (!previewing) return;
+  // Links can't navigate anywhere from the preview; the address stays visible as a tooltip.
+  if (node.hasAttribute('href') && node.nodeName !== 'USE') { node.setAttribute('title', node.getAttribute('href')); node.removeAttribute('href'); }
+  if (node.hasAttribute('xlink:href') && !/^#/.test(node.getAttribute('xlink:href'))) node.removeAttribute('xlink:href');
+});
+/** Sanitizes an HTML file for the preview frame; local images resolve from the file's folder. */
+export function sanitizePreview(src, { baseDir = '', assetUrl = (p) => p } = {}) {
+  ctx = { baseDir, assetUrl };
+  previewing = true;
+  try { return DOMPurify.sanitize(src, PREVIEW); } finally { previewing = false; }
 }
 
 /** Attaches raw math/diagram sources to the placeholders of freshly inserted HTML. */
