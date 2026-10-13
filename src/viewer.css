@@ -25,6 +25,7 @@
 
 /* lines */
 .vw-lines { font-size: .875em; line-height: 1.6; padding-bottom: 2em; }
+.markdown-body .vw-lines code { background: none; border: 0; border-radius: 0; margin: 0; font-size: inherit; color: var(--text); }
 .vw-lines code { display: block; font-family: var(--font-mono); background: none; padding: 0; white-space: pre; overflow-x: auto; tab-size: 4; }
 .vw-lines.wrap code { white-space: pre-wrap; overflow-wrap: anywhere; }
 .vw-lines .vl { display: flex; min-width: max-content; }
@@ -33,6 +34,7 @@
 .vw-lines .vn {
   flex: 0 0 auto; width: calc(var(--vw-digits) + 1.6em); padding-inline-end: 1.1em; text-align: end;
   color: var(--faint); opacity: .75; user-select: none; position: sticky; left: 0; background: var(--bg);
+  border-inline-end: 1px solid var(--border-soft); margin-inline-end: 1em;
 }
 .vw-lines .vn::before { content: attr(data-n); }
 .vw-lines .vc:empty::before { content: '\200b'; } /* keeps blank lines their height without copying a character */
