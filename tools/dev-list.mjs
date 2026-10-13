@@ -88,6 +88,9 @@ export function devGit(root, op, a) {
   }
   if (op === 'diff') {
     const common = ['-M', '--no-color', '--no-ext-diff', '--no-textconv', '-U3'];
+    if (a.base && a.rev && a.paths.length === 2) {
+      return { patch: git(cwd, ['diff', ...common, `${hex(a.base)}:${a.paths[0]}`, `${hex(a.rev)}:${a.paths[1]}`]), truncated: false };
+    }
     const args = a.base && a.rev ? ['diff', ...common, hex(a.base), hex(a.rev)]
       : a.rev ? ['show', '--format=', '--diff-merges=first-parent', ...common, hex(a.rev)]
       : ['diff', ...common, 'HEAD'];

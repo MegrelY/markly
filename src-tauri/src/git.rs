@@ -293,7 +293,9 @@ pub fn diff(root: &str, rev: Option<&str>, base: Option<&str>, paths: &[String])
         (Some(b), Some(r)) => {
             args.push(os("diff"));
             args.extend(common);
-            args.extend([os(b), os(r)]);
+            if paths.len() != 2 {
+                args.extend([os(b), os(r)]);
+            }
         }
         (_, None) => {
             args.push(os("diff"));
@@ -301,9 +303,17 @@ pub fn diff(root: &str, rev: Option<&str>, base: Option<&str>, paths: &[String])
             args.push(os("HEAD"));
         }
     }
-    args.push(os("--"));
-    for p in paths {
-        args.push(os(check_rel(p)?));
+    // Two commits where the file had different names: compare the two versions directly (git's
+    // rename detection would show an add and a delete once the content changed a lot).
+    let blobs: Vec<OsString>;
+    if let (Some(b), Some(r), [old, new]) = (base, rev, paths) {
+        blobs = vec![format!("{b}:{}", check_rel(old)?).into(), format!("{r}:{}", check_rel(new)?).into()];
+        args.extend(blobs.iter().map(OsString::as_os_str));
+    } else {
+        args.push(os("--"));
+        for p in paths {
+            args.push(os(check_rel(p)?));
+        }
     }
     let o = run(root, &args, MAX_DIFF)?;
     Ok(Diff { patch: String::from_utf8_lossy(&o.stdout).into_owned(), truncated: o.truncated })
@@ -396,7 +406,8 @@ mod tests {
         let root_commit = diff(&i.root, Some(&l.commits[3].hash), None, &["notes.md".into()]).unwrap();
         assert!(root_commit.patch.contains("new file mode"));
         let two = diff(&i.root, Some(&l.commits[0].hash), Some(&l.commits[3].hash), &["notes.md".into(), i.rel.clone()]).unwrap();
-        assert!(two.patch.contains("+third"));
+        assert!(two.patch.contains("+third") && two.patch.contains("-first line\n"), "{}", two.patch);
+        assert!(!two.patch.contains("new file mode"), "{}", two.patch);
 
         let old = show_file(&i.root, &l.commits[3].hash, "notes.md").unwrap();
         assert_eq!(old, b"# Notes\n\nfirst line\n");

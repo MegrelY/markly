@@ -132,6 +132,8 @@ export function hide() {
   panel.hidden = true;
   root.classList.remove('history-open');
   toggleBtn.setAttribute('aria-pressed', 'false');
+  // Focus must not stay inside the hidden view (its Esc handler would keep catching keys).
+  if (panel.contains(document.activeElement)) document.activeElement.blur();
   ctx.focusContent();
 }
 
@@ -366,10 +368,10 @@ export function docShown(doc) {
     });
   }
   if (banner.dataset.hash !== rev.hash) banner.innerHTML = `<span class="rv-icon">${ICON.history}</span>
-    <span class="rv-text">Earlier version <button class="hs-hash" data-copy="${rev.hash}" title="Copy ${rev.hash}">${esc(rev.short)}</button>
-    <span class="rv-subj" dir="auto">${esc(rev.subject)}</span><span class="rv-date">· ${esc(absTime(rev.time))}</span><span class="rv-ro">Read-only</span></span>
-    <button class="hs-btn" data-act="history">${ICON.back}<span>Back to history</span></button>
-    <button class="hs-btn hs-btn-primary" data-act="current">${ICON.pencil}<span>Return to current version</span></button>`;
+    <span class="rv-text"><button class="hs-hash" data-copy="${rev.hash}" title="Copy ${rev.hash}">${esc(rev.short)}</button>
+    <span class="rv-subj" dir="auto">${esc(rev.subject)}</span><span class="rv-date">· ${esc(absTime(rev.time))}</span><span class="rv-ro" title="An earlier version of this file, shown read-only">Earlier version · read-only</span></span>
+    <button class="hs-btn" data-act="history">${ICON.back}<span>History</span></button>
+    <button class="hs-btn hs-btn-primary" data-act="current" title="Return to the current version (Esc)">${ICON.pencil}<span>Current version</span></button>`;
   banner.dataset.hash = rev.hash;
   const scroller = document.getElementById('mk-scroller');
   if (banner.parentNode !== scroller) scroller.prepend(banner);

@@ -38,8 +38,8 @@ export function parsePatch(patch) {
       else if (line.startsWith('rename from ')) { f.status = 'R'; f.oldPath = line.slice(12); }
       else if (line.startsWith('rename to ')) f.newPath = line.slice(10);
       else if (line.startsWith('Binary files ') || line.startsWith('GIT binary patch')) f.binary = true;
-      else if (line.startsWith('--- ')) { if (line !== '--- /dev/null') f.oldPath ??= line.slice(4).replace(/^a\//, ''); }
-      else if (line.startsWith('+++ ')) { if (line !== '+++ /dev/null') f.newPath ??= line.slice(4).replace(/^b\//, ''); }
+      else if (line.startsWith('--- ')) { if (line !== '--- /dev/null') f.oldPath ??= line.slice(4).replace(/\t$/, '').replace(/^a\//, ''); }
+      else if (line.startsWith('+++ ')) { if (line !== '+++ /dev/null') f.newPath ??= line.slice(4).replace(/\t$/, '').replace(/^b\//, ''); }
       continue;
     }
     const t = line[0] || ' ';
