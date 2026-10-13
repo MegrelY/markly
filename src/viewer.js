@@ -251,7 +251,7 @@ export async function click(e, contentEl) {
     const s = v.csv.sort;
     v.csv.sort = !s || s.col !== col ? { col, dir: 1 } : s.dir > 0 ? { col, dir: -1 } : null;
     contentEl.querySelector('.vw-body').innerHTML = tableHtml(v);
-    contentEl.querySelector(`.vw-sort[data-col="${col}"]`)?.focus({ preventScroll: true });
+    if (e.detail === 0) contentEl.querySelector(`.vw-sort[data-col="${col}"]`)?.focus({ preventScroll: true }); // keyboard: keep focus
     ctx.changed();
     return true;
   }
@@ -266,7 +266,7 @@ export async function click(e, contentEl) {
   const html = await render(v.doc, v.type);
   if (view !== null && view.doc !== v.doc) return false; // another file opened meanwhile
   contentEl.innerHTML = html;
-  contentEl.querySelector(`.vw-bar ${which}`)?.focus({ preventScroll: true });
+  if (e.detail === 0) contentEl.querySelector(`.vw-bar ${which}`)?.focus({ preventScroll: true }); // keyboard: keep focus
   ctx.changed();
   return true;
 }
