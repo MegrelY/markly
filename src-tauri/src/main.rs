@@ -12,6 +12,8 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_window_state::StateFlags;
 
+mod git;
+
 const MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 #[derive(Default)]
@@ -337,6 +339,36 @@ fn watch_dir(app: AppHandle, state: State<'_, AppState>, path: Option<String>) -
     Ok(())
 }
 
+// ---------------------------------------------------------------- file history (git, read-only)
+
+async fn blocking<T: Send + 'static>(f: impl FnOnce() -> Result<T, git::GitError> + Send + 'static) -> Result<T, git::GitError> {
+    tauri::async_runtime::spawn_blocking(f)
+        .await
+        .unwrap_or_else(|e| Err(git::GitError { kind: "git", message: e.to_string() }))
+}
+
+/// Is the file tracked in a git work tree? Runs after the document is shown, off the UI thread.
+#[tauri::command]
+async fn git_info(path: String) -> Result<Option<git::Info>, git::GitError> {
+    blocking(move || git::info(&path)).await
+}
+
+#[tauri::command]
+async fn git_log(root: String, rel: String) -> Result<git::Log, git::GitError> {
+    blocking(move || git::log(&root, &rel)).await
+}
+
+#[tauri::command]
+async fn git_diff(root: String, rev: Option<String>, base: Option<String>, paths: Vec<String>) -> Result<git::Diff, git::GitError> {
+    blocking(move || git::diff(&root, rev.as_deref(), base.as_deref(), &paths)).await
+}
+
+/// The file as it was in commit `rev`, decoded like `read_markdown`.
+#[tauri::command]
+async fn git_file(root: String, rev: String, rel: String) -> Result<String, git::GitError> {
+    blocking(move || git::show_file(&root, &rev, &rel).map(decode)).await
+}
+
 fn initial_from_args() -> Option<String> {
     std::env::args_os()
         .skip(1)
@@ -361,7 +393,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(state)
-        .invoke_handler(tauri::generate_handler![read_markdown, read_image, initial_file, watch_file, list_dir, watch_dir])
+        .invoke_handler(tauri::generate_handler![read_markdown, read_image, initial_file, watch_file, list_dir, watch_dir, git_info, git_log, git_diff, git_file])
         .setup(|app| {
             // The page shows the window after its first paint (no white flash);
             // this is a safety net in case that never happens.
