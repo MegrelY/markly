@@ -7,6 +7,7 @@ it sends no telemetry.
 
 ![Markly in light mode](docs/screenshot-light.png)
 ![Markly in dark mode](docs/screenshot-dark.png)
+![File history: the commits that changed a file, and what each one changed](docs/screenshot-history.png)
 ![The folder browser panel](docs/screenshot-folder-browser.png)
 ![The Copy menu: copy the file path or its Markdown source](docs/screenshot-copy-menu.png)
 
@@ -16,11 +17,11 @@ From the [latest release](../../releases/latest):
 
 | Platform | File |
 |---|---|
-| Windows 10/11 x64 | `Markly_1.2.0_x64-setup.exe` (installer) or `Markly_1.2.0_x64_portable.exe` |
-| Debian / Ubuntu x64 | `Markly_1.2.0_amd64.deb` |
-| Fedora / openSUSE x64 | `Markly-1.2.0-1.x86_64.rpm` |
-| Any Linux x64 | `Markly_1.2.0_amd64.AppImage` |
-| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.2.0_universal.dmg` (unsigned) |
+| Windows 10/11 x64 | `Markly_1.3.0_x64-setup.exe` (installer) or `Markly_1.3.0_x64_portable.exe` |
+| Debian / Ubuntu x64 | `Markly_1.3.0_amd64.deb` |
+| Fedora / openSUSE x64 | `Markly-1.3.0-1.x86_64.rpm` |
+| Any Linux x64 | `Markly_1.3.0_amd64.AppImage` |
+| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.3.0_universal.dmg` (unsigned) |
 
 ## Features
 
@@ -39,6 +40,14 @@ From the [latest release](../../releases/latest):
   - Other files are dimmed and never opened. Hidden files are not shown.
   - Optional *only Markdown* filter, and full keyboard navigation.
   - Resizable, refreshes when the folder changes, and remembers its state.
+- File history for files tracked in Git (Ctrl+Shift+H):
+  - Lists every commit that changed the file, following renames, with short hash, subject, author and
+    relative and local date, plus an *Uncommitted changes* entry when the working copy differs.
+  - Click a commit to see how the file changed in it: GitHub-style green/red lines with line numbers and
+    hunk headers, word-level highlights, and a Unified / Split (side-by-side) toggle.
+  - *View file at this commit* renders the Markdown as it was then, read-only, with a banner to go back.
+  - Ctrl+click a second commit to compare two commits. Each hash has a copy button.
+  - Uses the `git` you already have installed, only reads the repository, and loads only when first opened.
 - Copy button next to Find: **Copy path** copies the file's full path, and **Copy content** copies the raw
   Markdown source exactly as it is on disk, not the rendered page. Ctrl+Shift+C copies the path.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
@@ -58,6 +67,8 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 | Find / next / previous | Ctrl+F, Enter / F3, Shift+Enter / Shift+F3 |
 | Copy file path | Ctrl+Shift+C |
 | Folder browser on / off | Ctrl+Shift+E |
+| File history on / off | Ctrl+Shift+H |
+| In the file history | ↑ ↓ Home End to pick a commit, Enter to view the file at that commit, Ctrl+click to compare, Esc to close |
 | In the folder browser | ↑ ↓ Home End to move, Enter to open, Backspace / Alt+↑ for Up, type to jump, Esc back to the document |
 | Table of contents | Ctrl+\ |
 | Zoom in / out / reset | Ctrl + = / Ctrl + - / Ctrl + 0, or Ctrl + mouse wheel |
@@ -71,13 +82,13 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 
 ### Windows
 
-Run `Markly_1.2.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
+Run `Markly_1.3.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
 The installer registers Markly as an **Open with** handler for `.md`, `.markdown`, `.mdown` and `.mkd`. It does
 not take over an existing default app. To make Markly the default, right-click a `.md` file and choose
 *Open with → Choose another app → Markly → Always*, or use *Settings → Apps → Default apps → Markly*.
 If no app was registered for `.md` before, Markly becomes the handler.
 
-There is also a portable option: `Markly_1.2.0_x64_portable.exe` runs without installing, but it
+There is also a portable option: `Markly_1.3.0_x64_portable.exe` runs without installing, but it
 does not register file associations.
 
 The binaries are not code-signed, so Windows SmartScreen may warn you the first time.
@@ -85,9 +96,9 @@ Click **More info → Run anyway**.
 
 ### Linux
 
-- Debian/Ubuntu: `sudo apt install ./Markly_1.2.0_amd64.deb`
-- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.2.0-1.x86_64.rpm` (or `zypper install`)
-- AppImage: `chmod +x Markly_1.2.0_amd64.AppImage && ./Markly_1.2.0_amd64.AppImage file.md`.
+- Debian/Ubuntu: `sudo apt install ./Markly_1.3.0_amd64.deb`
+- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.3.0-1.x86_64.rpm` (or `zypper install`)
+- AppImage: `chmod +x Markly_1.3.0_amd64.AppImage && ./Markly_1.3.0_amd64.AppImage file.md`.
   It is large (~105 MB) because it bundles WebKitGTK. Prefer the deb/rpm where possible.
 
 The deb and rpm install `markly` to `/usr/bin` and a desktop entry for `text/markdown`, so Markly shows
@@ -145,6 +156,29 @@ a busier machine, so compare numbers within one table, not across tables:
 
 The folder browser's script (9.4 KB) and stylesheet (3.5 KB) load only when the panel is first opened.
 
+**1.3.0 vs 1.2.0, with the history closed.** The file history doesn't slow start-up or change the
+rendered page (screenshots pixel-identical, HTML identical). Same method, median of 7 runs averaged over 3
+interleaved rounds, measured in one session:
+
+| Metric | 1.2.0 | 1.3.0 |
+|---|---:|---:|
+| Start-up JS + CSS | 249.5 + 25.2 KB | 251.4 + 25.3 KB |
+| Start-up download (gzip) | 99.8 KB | 100.5 KB |
+| Requests, text-only / showcase | 8 / 62 | 8 / 62 |
+| First render, text-only doc | 252 ms | 256 ms (within noise) |
+| First render, `showcase.md` | 579 ms | 576 ms |
+| `showcase.md` fully ready | 1129 ms | 1124 ms |
+| JS heap, text-only / showcase | 2.3 / 14.8 MB | 2.3 / 14.8 MB |
+| Renderer memory (PSS), text-only / showcase | 76.0 / 115.5 MB | 76.5 / 115.5 MB |
+| Windows installer / portable exe | 3,583,396 / 5,328,896 B | 3,611,192 / 5,400,064 B (+27 / +70 KB) |
+| Linux binary | 6,742,848 B | 6,817,344 B (+73 KB) |
+
+The history's script (18 KB) and stylesheet (10 KB) load only when it is first opened. Whether a file is
+tracked is checked after the document is shown: Markly looks for a `.git` folder, and only then runs one
+`git ls-files` (about 1 ms) off the UI thread. Markly calls the `git` command-line tool rather than
+bundling a Git library: a minimal build using the `gix` crate for the same operations was about 1.8 MB
+larger.
+
 Where the 1.1 gains come from:
 - The text font is preloaded, and Chromium's default `text-rendering` is used, so the first layout is not
   redone when the font arrives.
@@ -179,14 +213,16 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appi
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin && cargo tauri build --target universal-apple-darwin`.
 
 **CI / releases:** `.github/workflows/ci.yml` builds every push and pull request on all three
-platforms. Pushing a tag such as `v1.2.0` runs `.github/workflows/release.yml`, which creates a GitHub
+platforms. Pushing a tag such as `v1.3.0` runs `.github/workflows/release.yml`, which creates a GitHub
 release with the Windows installer and portable exe, the Linux deb/rpm/AppImage and the macOS dmg.
-To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.2.0`. It reuses
+To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.3.0`. It reuses
 that tag's release, whether it is a draft or published, and replaces assets that have the same names.
 
 Frontend only: `npm run build` (writes `dist-web/`). Then:
 - `node tools/screenshot.mjs` renders the sample in headless Chrome.
-- `node tools/interact.mjs` runs the UI checks.
+- `node tools/interact.mjs` runs the UI checks (it builds a small Git repository with
+  `tools/make-git-fixture.sh` for the history tests).
+- `cargo test --manifest-path src-tauri/Cargo.toml` runs the Rust tests (git commands on a temporary repository).
 - `node tools/bench.mjs` measures first-render time and memory.
 
 ## Layout
@@ -197,8 +233,10 @@ src/            frontend (vanilla JS + CSS, bundled by esbuild)
   render.js     markdown-it pipeline + DOMPurify + Mermaid
   math.js       $/$$ math plugin, lazy KaTeX
   files.js      folder browser panel (lazy-loaded with files.css)
+  history.js    file history view; diff.js parses and renders diffs (lazy-loaded with history.css)
   host.js       Tauri bridge (or plain-browser fallback for previews)
 src-tauri/      Rust shell: file reading, file watching, CLI args, window state
+  src/git.rs    read-only git commands for the file history (runs the git CLI)
   windows/hooks.nsh   Windows installer file-association hooks
   linux/markly.desktop  Linux desktop entry (deb/rpm/AppImage)
   tauri.{windows,linux,macos}.conf.json  per-platform bundle settings
@@ -209,6 +247,13 @@ tools/          screenshot, interaction test and benchmark scripts
 ## Version history
 
 All releases so far, newest first. See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+### 1.3.0 — 2026-10-12
+- **File history** for files tracked in Git (History button or Ctrl+Shift+H):
+  - Every commit that changed the file, following renames, plus uncommitted changes.
+  - Each commit's diff of the file, inline or side by side, with word-level highlights.
+  - View the rendered file as it was at any commit, or compare two commits.
+  - Read-only, uses the installed `git`, and loads only when first opened.
 
 ### 1.2.0 — 2026-10-08
 - **Folder browser** panel on the right (Ctrl+Shift+E):

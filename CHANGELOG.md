@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.0 — 2026-10-12
+
+### Added
+- **File history**: when the open file is tracked in a Git repository, a History button appears in the
+  header (Ctrl+Shift+H, ⇧⌘H on macOS). The check runs after the document is shown, so it never delays it.
+  - The history lists every commit that changed the file, following renames (`git log --follow`): short
+    hash, subject, author, and relative and local date. An *Uncommitted changes* entry at the top shows
+    staged and unstaged edits against the last commit.
+  - Click a commit to see exactly how the file changed in it: green/red lines with old and new line
+    numbers, hunk headers and word-level highlights. Switch between Unified and Split (side-by-side)
+    views; the choice is remembered.
+  - *View file at this commit* (or Enter) renders the Markdown as it was then, read-only, under a banner
+    with *Back to history* and *Return to current version* (or Esc).
+  - Ctrl+click (⌘-click) a second commit to compare two commits. Each hash has a copy button.
+  - Keyboard: ↑ ↓ Home End PageUp PageDown to move through commits, Esc to close.
+  - Markly runs the `git` command-line tool you have installed and only reads the repository. It never
+    runs a command that changes it, and turns off pagers, external diff tools, text-conversion filters
+    and fsmonitor hooks. Calls time out after 20 s, and very large diffs are cut off with a note.
+    If Git isn't installed, the history explains that instead.
+  - The history code and styles load only when the history is first opened.
+
 ## 1.2.0 — 2026-10-08
 
 ### Added
