@@ -4,9 +4,17 @@
 ;  - Applications\Markly.exe + SupportedTypes     -> listed in the Open-with picker
 ;  - Capabilities + RegisteredApplications        -> selectable in Settings > Default apps
 ;  - .md / .markdown default is set ONLY if no handler is registered at all.
+;  - Text, code and data files (.txt, .json, .py, ...) are only offered: listed in the Open-with
+;    picker and in Default apps, never made the default and never added to their OpenWithProgids.
 
 !define MK_PROGID "Markly.md"
 !define MK_CAPS "Software\Markly\Capabilities"
+!define MK_PROGID_TEXT "Markly.text"
+
+!macro MK_OFFER_EXT EXT
+  WriteRegStr SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe\SupportedTypes" "${EXT}" ""
+  WriteRegStr SHCTX "${MK_CAPS}\FileAssociations" "${EXT}" "${MK_PROGID_TEXT}"
+!macroend
 
 !macro MK_ADD_EXT EXT
   WriteRegStr SHCTX "Software\Classes\${EXT}\OpenWithProgids" "${MK_PROGID}" ""
@@ -40,6 +48,10 @@
   WriteRegStr SHCTX "Software\Classes\${MK_PROGID}\shell" "" "open"
   WriteRegStr SHCTX "Software\Classes\${MK_PROGID}\shell\open" "FriendlyAppName" "Markly"
   WriteRegStr SHCTX "Software\Classes\${MK_PROGID}\shell\open\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
+  WriteRegStr SHCTX "Software\Classes\${MK_PROGID_TEXT}" "" "Text Document (Markly)"
+  WriteRegStr SHCTX "Software\Classes\${MK_PROGID_TEXT}\DefaultIcon" "" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
+  WriteRegStr SHCTX "Software\Classes\${MK_PROGID_TEXT}\shell\open" "FriendlyAppName" "Markly"
+  WriteRegStr SHCTX "Software\Classes\${MK_PROGID_TEXT}\shell\open\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
   ; Application registration (Open with list)
   WriteRegStr SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe" "FriendlyAppName" "Markly"
   WriteRegStr SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe\DefaultIcon" "" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
@@ -54,6 +66,21 @@
   !insertmacro MK_ADD_EXT ".markdown"
   !insertmacro MK_ADD_EXT ".mdown"
   !insertmacro MK_ADD_EXT ".mkd"
+  !insertmacro MK_OFFER_EXT ".txt"
+  !insertmacro MK_OFFER_EXT ".log"
+  !insertmacro MK_OFFER_EXT ".json"
+  !insertmacro MK_OFFER_EXT ".yaml"
+  !insertmacro MK_OFFER_EXT ".yml"
+  !insertmacro MK_OFFER_EXT ".toml"
+  !insertmacro MK_OFFER_EXT ".ini"
+  !insertmacro MK_OFFER_EXT ".csv"
+  !insertmacro MK_OFFER_EXT ".xml"
+  !insertmacro MK_OFFER_EXT ".html"
+  !insertmacro MK_OFFER_EXT ".htm"
+  !insertmacro MK_OFFER_EXT ".css"
+  !insertmacro MK_OFFER_EXT ".js"
+  !insertmacro MK_OFFER_EXT ".ts"
+  !insertmacro MK_OFFER_EXT ".py"
 
   ; Tell Explorer that associations changed (SHCNE_ASSOCCHANGED)
   System::Call 'shell32::SHChangeNotify(i 0x08000000, i 0, p 0, p 0)'
@@ -65,6 +92,7 @@
   !insertmacro MK_DEL_EXT ".mdown"
   !insertmacro MK_DEL_EXT ".mkd"
   DeleteRegKey SHCTX "Software\Classes\${MK_PROGID}"
+  DeleteRegKey SHCTX "Software\Classes\${MK_PROGID_TEXT}"
   DeleteRegKey SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe"
   DeleteRegValue SHCTX "Software\RegisteredApplications" "Markly"
   DeleteRegKey SHCTX "${MK_CAPS}"

@@ -9,6 +9,12 @@
         "name": "Markdown Document",
         "role": "Viewer",
         "rank": "Alternate"
+      },
+      {
+        "ext": ["txt", "log", "json", "yaml", "yml", "toml", "ini", "csv", "xml", "html", "htm", "css", "js", "ts", "py"],
+        "name": "Text Document",
+        "role": "Viewer",
+        "rank": "Alternate"
       }
     ],
     "macOS": {
