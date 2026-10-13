@@ -71,5 +71,5 @@ function normalize(p, sep) {
   return prefix + out.join(sep);
 }
 
-export const MD_EXT = /\.(md|markdown|mdown|mkdn|mkd|mdwn|mdx|txt)$/i;
+export const MD_EXT = /\.(md|markdown|mdown|mkdn|mkd|mdwn|mdx)$/i;
 export const isMarkdownPath = (p) => MD_EXT.test(p);

@@ -28,7 +28,13 @@ const tauriHost = {
   pickFile: async () => {
     const r = await openDialog({
       multiple: false, directory: false, title: 'Open Markdown file',
-      filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mkdn', 'mdx', 'txt'] }, { name: 'All files', extensions: ['*'] }],
+      filters: [
+        { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mkdn', 'mdx'] },
+        { name: 'Text, code and data', extensions: ['txt', 'log', 'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'csv', 'tsv',
+          'xml', 'svg', 'html', 'htm', 'css', 'scss', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'sh', 'ps1', 'bat', 'sql', 'rs', 'go',
+          'java', 'c', 'h', 'cpp', 'hpp', 'cs', 'rb', 'php', 'kt', 'swift', 'lua', 'env', 'gitignore', 'editorconfig', 'dockerfile'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
     });
     return Array.isArray(r) ? r[0] : r;
   },
@@ -55,7 +61,12 @@ const browserHost = {
   read: async (path) => {
     const res = await fetch(path, { cache: 'no-store' });
     if (!res.ok) throw new Error(`Could not open ${path} (${res.status})`);
-    return { path, name: basename(path), dir: dirname(path), content: await res.text() };
+    // Same rules as the Rust side: NUL bytes near the start mean binary; UTF-8/UTF-16 BOMs decoded.
+    const b = new Uint8Array(await res.arrayBuffer());
+    const le = b[0] === 0xff && b[1] === 0xfe, be = b[0] === 0xfe && b[1] === 0xff;
+    const binary = !le && !be && b.subarray(0, 8192).includes(0);
+    const content = binary ? '' : new TextDecoder(le ? 'utf-16le' : be ? 'utf-16be' : 'utf-8').decode(b);
+    return { path, name: basename(path), dir: dirname(path), content, size: b.length, binary };
   },
   watch: async () => {},
   onChange: async () => {},

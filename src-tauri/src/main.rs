@@ -33,6 +33,16 @@ struct Doc {
     name: String,
     dir: String,
     content: String,
+    /// File size in bytes.
+    size: u64,
+    /// The file looks binary (NUL bytes near the start); `content` is then empty.
+    binary: bool,
+}
+
+/// NUL bytes in the first 8 KB mean binary, unless the file starts with a UTF-16 byte-order mark.
+fn looks_binary(bytes: &[u8]) -> bool {
+    let utf16 = bytes.len() >= 2 && ((bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[0] == 0xFE && bytes[1] == 0xFF));
+    !utf16 && bytes[..bytes.len().min(8192)].contains(&0)
 }
 
 fn decode(bytes: Vec<u8>) -> String {
@@ -64,11 +74,14 @@ async fn read_markdown(path: String) -> Result<Doc, String> {
         return Err(format!("{} is too large to display ({} MB)", p.display(), meta.len() / 1_048_576));
     }
     let bytes = std::fs::read(&p).map_err(|e| format!("Could not open {}: {}", p.display(), e))?;
+    let binary = looks_binary(&bytes);
     Ok(Doc {
+        size: meta.len(),
+        binary,
         name: p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default(),
         dir: p.parent().map(|d| d.to_string_lossy().into_owned()).unwrap_or_default(),
         path: p.to_string_lossy().into_owned(),
-        content: decode(bytes),
+        content: if binary { String::new() } else { decode(bytes) },
     })
 }
 
@@ -367,6 +380,21 @@ async fn git_diff(root: String, rev: Option<String>, base: Option<String>, paths
 #[tauri::command]
 async fn git_file(root: String, rev: String, rel: String) -> Result<String, git::GitError> {
     blocking(move || git::show_file(&root, &rev, &rel).map(decode)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn binary_detection_and_decoding() {
+        assert!(looks_binary(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"));
+        assert!(!looks_binary(b"plain text\n"));
+        assert!(!looks_binary(&[0xFF, 0xFE, b'h', 0, b'i', 0])); // UTF-16 LE text has NUL bytes
+        assert_eq!(decode(vec![0xFF, 0xFE, b'h', 0, b'i', 0]), "hi");
+        assert_eq!(decode(vec![0xFE, 0xFF, 0, b'h', 0, b'i']), "hi");
+        assert_eq!(decode(b"\xEF\xBB\xBFbom".to_vec()), "bom");
+    }
 }
 
 fn initial_from_args() -> Option<String> {
