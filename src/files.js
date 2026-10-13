@@ -151,7 +151,9 @@ export function hide() {
   toggleBtn?.setAttribute('aria-pressed', 'false');
   ctx.LS.set('files.open', false);
   ctx.host.watchDir(null);
-  if (hadFocus) ctx.focusContent();
+  // Focus must not stay inside the hidden panel: its key handler (Esc, Backspace, arrows) would keep
+  // acting on the invisible list.
+  if (hadFocus) { document.activeElement.blur(); ctx.focusContent(); }
 }
 
 /** Called after a document opens: show its folder and highlight it. */

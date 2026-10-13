@@ -220,6 +220,15 @@ const w1 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
 check('panel resizable', Math.abs(w1 - w0 - 80) <= 2, `${w0} -> ${w1}`);
 await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyE'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
 check('ctrl+shift+e closes panel', await p.$eval('#mk-files', (e) => e.hidden));
+check('closing the panel moves focus out of it', await p.evaluate(() => !document.getElementById('mk-files').contains(document.activeElement) && document.activeElement.id === 'mk-scroller'));
+{
+  const before = await p.$eval('#mk-files .fb-path', (e) => e.textContent);
+  await p.keyboard.press('Backspace'); await p.keyboard.press('ArrowDown'); await sleep(200);
+  await p.keyboard.press('Control'); await p.keyboard.press('KeyF'); // find opens…
+  await p.keyboard.down('Control'); await p.keyboard.press('KeyF'); await p.keyboard.up('Control'); await sleep(100);
+  await p.keyboard.press('Escape'); await sleep(100);                 // …and Esc closes it
+  check('keys no longer reach the hidden folder list', (await p.$eval('#mk-files .fb-path', (e) => e.textContent)) === before && await p.$eval('#mk-findbar', (e) => e.hidden));
+}
 await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyE'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
 await p.waitForSelector('#mk-files:not([hidden]) .fb-item.current');
 check('ctrl+shift+e opens panel', true);
