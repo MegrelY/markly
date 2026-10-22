@@ -1,8 +1,9 @@
 // Renders documents with two builds (dist dirs) in headless Chrome and compares the resulting
 // #mk-content HTML. Usage: node tools/html-equiv.mjs <distA> <distB> <doc.md>...
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import puppeteer from 'puppeteer-core';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const [A, B, ...docs] = process.argv.slice(2);
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
 function serve(dist) {

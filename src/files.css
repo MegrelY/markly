@@ -45,7 +45,7 @@ button.fb-crumb:hover { background: var(--surface-2); color: var(--text-strong);
 .fb-mi.md > svg { color: var(--accent); }
 .fb-mi .fb-tick { width: 14px; height: 14px; stroke-width: 2.2; color: var(--accent); visibility: hidden; }
 .fb-box { flex: 0 0 auto; width: 14px; height: 14px; border: 1.5px solid var(--border-strong); border-radius: 4px; display: grid; place-items: center; }
-.fb-box .fb-tick { width: 11px; height: 11px; stroke-width: 2.8; color: #fff; }
+.fb-box .fb-tick { width: 11px; height: 11px; stroke-width: 2.8; color: var(--on-accent); }
 .fb-mi[aria-checked='true'] .fb-tick { visibility: visible; }
 .fb-mi[aria-checked='true'] .fb-box { background: var(--accent); border-color: var(--accent); }
 .fb-mi[aria-checked='true'] .fb-ml { font-weight: 600; color: var(--text-strong); }

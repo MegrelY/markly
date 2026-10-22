@@ -1,12 +1,13 @@
 // Renders a sample in headless Chrome (browser host mode) and saves light/dark screenshots.
 // Usage: node tools/screenshot.mjs [file=/samples/showcase.md] [outDir=dist]
 import http from 'node:http';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import puppeteer from 'puppeteer-core';
 import { maybeServeList, maybeServeGit } from './dev-list.mjs';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const file = process.argv[2] || '/samples/showcase.md';
 const outDir = process.argv[3] || path.join(ROOT, 'dist');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.md': 'text/markdown; charset=utf-8', '.png': 'image/png' };

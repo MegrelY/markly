@@ -1,13 +1,11 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="0.55" stop-color="#8b5cf6"/><stop offset="1" stop-color="#ec4899"/></linearGradient>
-    <radialGradient id="r" cx="0.85" cy="0.1" r="0.7"><stop offset="0" stop-color="#fff" stop-opacity=".35"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#134e4a"/><stop offset="0.55" stop-color="#0f766e"/><stop offset="1" stop-color="#14b8a6"/></linearGradient>
+    <radialGradient id="r" cx="0.85" cy="0.1" r="0.7"><stop offset="0" stop-color="#fff" stop-opacity=".28"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
   </defs>
   <rect width="1200" height="300" rx="28" fill="url(#g)"/>
   <rect width="1200" height="300" rx="28" fill="url(#r)"/>
-  <g fill="none" stroke="#fff" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" transform="translate(110 85)">
-    <path d="M0 130V0l50 62L100 0v130"/><path d="M175 0v118m-36-36 36 36 36-36"/>
-  </g>
-  <text x="400" y="160" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="76" font-weight="750" fill="#fff" letter-spacing="-2">Markly</text>
-  <text x="403" y="208" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" fill="#fff" fill-opacity=".85">Beautiful Markdown, instantly.</text>
+  <path transform="translate(110 52) scale(0.19)" fill="#fff" fill-rule="evenodd" d="M192 64H832Q928 64 928 160V904Q928 960 880 936L512 752L144 936Q96 960 96 904V160Q96 64 192 64ZM248 640V304Q248 272 280 272H304Q320 272 332 288L512 492L692 288Q704 272 720 272H744Q776 272 776 304V640Q776 672 744 672H712Q680 672 680 640V468L548 616Q512 660 476 616L344 468V640Q344 672 312 672H280Q248 672 248 640Z"/>
+  <text x="340" y="160" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="76" font-weight="750" fill="#fff" letter-spacing="-2">Markly</text>
+  <text x="343" y="208" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" fill="#fff" fill-opacity=".85">Beautiful Markdown, instantly.</text>
 </svg>

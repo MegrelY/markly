@@ -84,8 +84,8 @@ html.history-open #mk-findbar { display: none; }
 }
 .hs-btn:hover { border-color: var(--border-strong); background: var(--surface-2); color: var(--text-strong); }
 .hs-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-.hs-btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.hs-btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; color: #fff; }
+.hs-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.hs-btn-primary:hover { background: color-mix(in srgb, var(--accent) 88%, #000); border-color: transparent; color: var(--on-accent); }
 
 .hs-diff { flex: 1 1 auto; overflow: auto; padding: 14px 20px 40px; outline: none; transition: opacity .12s; }
 .hs-diff.busy { opacity: .55; }
