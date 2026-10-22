@@ -50,6 +50,8 @@ export function fileType(path) {
   if (ext === 'json' || ext === 'jsonc' || ext === 'json5' || ext === 'geojson' || ext === 'webmanifest') return { kind: 'json', lang: 'json', fmt: 'json', label: 'JSON', ext };
   if (ext === 'html' || ext === 'htm' || ext === 'xhtml') return { kind: 'html', lang: 'xml', fmt: 'html', label: 'HTML', ext };
   if (CODE[ext]) return { kind: 'code', lang: CODE[ext], fmt: FMT[ext], label: EXT_LABEL[ext] || LABEL[CODE[ext]], ext };
+  // dotenv variants: .env.local, .env.example, .env.production, … (".env" itself is handled above)
+  if (lower.startsWith('.env.')) return { kind: 'code', lang: 'ini', label: EXT_LABEL.env, ext: 'env' };
   return null;
 }
 export const isMarkdownPath = (p) => fileType(p)?.kind === 'md';

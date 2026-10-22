@@ -2,15 +2,16 @@
 // files.css), so it costs nothing at start-up while closed.
 // Path helpers come from the app via init() (importing path.js here would split it into a shared
 // chunk and add a request at start-up).
-let isMarkdownPath, fileType, dirname;
+let fileType, dirname;
 
 const DEFAULT_W = 300, MIN_W = 200, MAX_W = 640;
 // Explicit locale: some web views run with a POSIX locale whose collation is case-sensitive.
 const coll = new Intl.Collator([navigator.language, 'en'].filter((l) => l && !/^(c|posix)$/i.test(l)), { numeric: true, sensitivity: 'base' });
-const byName = (a, b) => coll.compare(a.toLowerCase(), b.toLowerCase()) || coll.compare(a, b);
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const winLike = (p) => /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith('\\\\');
 const samePath = (a, b) => !!a && !!b && (winLike(a) || winLike(b) ? a.toLowerCase() === b.toLowerCase() : a === b);
+// The listing sends only names (paths would repeat the folder for every entry).
+const join = (dir, name) => (/[\\/]$/.test(dir) ? dir : dir + (winLike(dir) ? '\\' : '/')) + name;
 
 const ICONS = {
   dir: '<svg viewBox="0 0 24 24"><path d="M3.5 7.5V17a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2V9.5a2 2 0 0 0-2-2h-6.5l-2-2.5H5.5a2 2 0 0 0-2 2z"/></svg>',
@@ -24,17 +25,20 @@ const ICONS = {
   json: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18M10.5 12c-1.2 0-1 1.2-1 2s-.5 1-1 1c.5 0 1 .2 1 1s-.2 2 1 2M13.5 12c1.2 0 1 1.2 1 2s.5 1 1 1c-.5 0-1 .2-1 1s.2 2-1 2"/></svg>',
   html: '<svg viewBox="0 0 24 24"><path d="M6 3.5h7.5L18 8v12.5H6z"/><path d="M13.5 3.5V8H18"/><circle cx="12" cy="15" r="3.2"/><path d="M8.8 15h6.4M12 11.8c1 1 1 5.4 0 6.4M12 11.8c-1 1-1 5.4 0 6.4"/></svg>',
 };
+const TICK = '<svg class="fb-tick" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
 const openable = (en) => en.kind === 'md' || en.kind === 'view';
 
-let ctx, root, panel, listEl, pathEl, crumbsEl, upBtn, copyBtn, filterBtn, statusEl, toggleBtn;
-let listing = null;        // last listing shown: { path, parent, crumbs, entries, truncated }
+let ctx, root, panel, listEl, pathEl, crumbsEl, upBtn, copyBtn, filterBtn, menuEl, statusEl, toggleBtn;
+let listing = null;        // last listing shown: { path, parent, crumbs, truncated, all } (all: classified, sorted)
 let failed = null;         // { path, kind, message } when the last navigation failed
 let view = [];             // entries as displayed (sorted, filtered)
 let sel = -1;
 let seq = 0;
 let isOpen = false;
 let lastFollowed = null;
-let mdOnly, width;
+// File types shown (folders always are): [] every file, ['*'] the files Markly opens, otherwise
+// type labels from fileType() ("Markdown", "JSON", "Python", …).
+let types, width;
 let refreshTimer, typeBuf = '', typeTimer;
 
 function loadCss() {
@@ -48,8 +52,9 @@ function loadCss() {
 
 export async function init(c) {
   ctx = c; root = document.documentElement;
-  ({ isMarkdownPath, fileType, dirname } = c);
-  mdOnly = ctx.LS.get('files.mdOnly', false);
+  ({ fileType, dirname } = c);
+  types = ctx.LS.get('files.types', null);
+  if (!Array.isArray(types)) types = ctx.LS.get('files.mdOnly', false) ? ['Markdown'] : []; // 1.4 had a Markdown-only switch
   width = +ctx.LS.get('files.width', DEFAULT_W) || DEFAULT_W;   // preferred width; clamped when applied
   toggleBtn = document.getElementById('btn-files');
   await loadCss();
@@ -63,34 +68,37 @@ export async function init(c) {
         <button class="icon-btn fb-up" title="Up one folder (Backspace)" aria-label="Up one folder"><svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
         <div class="fb-path" dir="auto"></div>
         <button class="icon-btn fb-copy" title="Copy folder path" aria-label="Copy folder path"><svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6.2A2.2 2.2 0 0 0 13.3 4H6.2A2.2 2.2 0 0 0 4 6.2v7.1a2.2 2.2 0 0 0 2.2 2.2h2.3"/></svg></button>
-        <button class="icon-btn fb-filter" title="Show only Markdown files" aria-label="Show only Markdown files" aria-pressed="false"><svg viewBox="0 0 24 24"><path d="M4 5.5h16l-6.2 7.2v5.6l-3.6 1.9v-7.5z"/></svg></button>
+        <button class="icon-btn fb-filter" aria-label="Filter by file type" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M4 5.5h16l-6.2 7.2v5.6l-3.6 1.9v-7.5z"/></svg></button>
       </div>
       <nav class="fb-crumbs" aria-label="Folder path"></nav>
     </div>
+    <div class="fb-menu" role="menu" aria-label="Show files" hidden></div>
     <div class="fb-list" role="listbox" tabindex="0" aria-label="Folder contents"></div>
     <div class="fb-status"></div>`;
   document.getElementById('mk-layout').appendChild(panel);
   const q = (s) => panel.querySelector(s);
   listEl = q('.fb-list'); pathEl = q('.fb-path'); crumbsEl = q('.fb-crumbs');
-  upBtn = q('.fb-up'); copyBtn = q('.fb-copy'); filterBtn = q('.fb-filter'); statusEl = q('.fb-status');
+  upBtn = q('.fb-up'); copyBtn = q('.fb-copy'); filterBtn = q('.fb-filter'); menuEl = q('.fb-menu'); statusEl = q('.fb-status');
   applyWidth();
-  filterBtn.setAttribute('aria-pressed', String(mdOnly));
+  updateFilterBtn();
 
   upBtn.onclick = goUp;
   copyBtn.onclick = async () => {
     const p = listing && !failed ? listing.path : failed?.path;
     if (p && await ctx.copyText(p)) ctx.toast('Copied folder path', 1600);
   };
-  filterBtn.onclick = () => {
-    mdOnly = !mdOnly; ctx.LS.set('files.mdOnly', mdOnly);
-    filterBtn.setAttribute('aria-pressed', String(mdOnly));
-    if (listing && !failed) render({ keep: true });
-  };
+  filterBtn.onclick = () => (menuEl.hidden ? openMenu() : closeMenu(true));
+  menuEl.addEventListener('click', onMenuClick);
+  menuEl.addEventListener('keydown', onMenuKey);
+  // Clicking anywhere else (or tabbing away) closes the menu.
+  document.addEventListener('pointerdown', (e) => { if (!menuEl.hidden && !menuEl.contains(e.target) && !filterBtn.contains(e.target)) closeMenu(); }, true);
+  menuEl.addEventListener('focusout', (e) => { if (e.relatedTarget && !menuEl.contains(e.relatedTarget) && e.relatedTarget !== filterBtn) closeMenu(); });
   crumbsEl.addEventListener('click', (e) => {
     const b = e.target.closest('button.fb-crumb');
     if (b) navigate(b.dataset.path, { select: listing?.path });
   });
   listEl.addEventListener('click', (e) => {
+    if (e.target.closest('.fb-showall')) { setTypes([]); return; }
     const it = e.target.closest('.fb-item'); if (!it) return;
     const i = +it.dataset.i; setSel(i);
     if (openable(view[i])) openEntry(view[i]);
@@ -153,6 +161,7 @@ export async function show({ focus = false } = {}) {
 export function hide() {
   if (!isOpen) return;
   const hadFocus = panel.contains(document.activeElement);
+  closeMenu();
   isOpen = false; panel.hidden = true;
   root.classList.remove('files-open');
   toggleBtn?.setAttribute('aria-pressed', 'false');
@@ -180,38 +189,54 @@ async function navigate(path, { select, keep = false, fallback = false } = {}) {
   if (err) {
     failed = { path, kind: err.kind, message: err.message };
     renderError();
+    if (!menuEl.hidden) renderMenu();
     return;
   }
   const same = listing && samePath(listing.path, res.path);
   failed = null; listing = res;
+  res.all = prepare(res); res.entries = null;
   if (res.path) ctx.LS.set('files.dir', res.path);
   if (isOpen) ctx.host.watchDir(res.path || null);
   render({ select, keep: keep && same });
+  if (!menuEl.hidden) renderMenu();
 }
 
 function refresh() { if (listing) navigate(listing.path, { keep: true }); }
 
-function kindOf(en) {
-  if (listing.path === '' && en.dir) return 'drive';
-  if (en.dir) return 'dir';
-  if (isMarkdownPath(en.name)) return 'md';
-  return fileType(en.name) ? 'view' : 'other';
+/** Classifies and sorts a listing once; filtering and re-rendering reuse the result. */
+function prepare(res) {
+  const all = res.entries.map((en) => {
+    const e = { name: en.name, path: en.path ?? join(res.path, en.name), dir: en.dir, key: en.name.toLowerCase() };
+    if (en.dir) { e.kind = e.icon = res.path === '' ? 'drive' : 'dir'; return e; }
+    const t = fileType(en.name);
+    e.kind = !t ? 'other' : t.kind === 'md' ? 'md' : 'view';
+    e.icon = t ? t.kind : 'other';
+    e.type = t ? t.label : null;
+    return e;
+  });
+  return all.sort((a, b) => (b.dir - a.dir) || coll.compare(a.key, b.key) || coll.compare(a.name, b.name));
 }
 
+const filtering = () => types.length > 0;
+const shows = (en) => en.dir || !types.length || (types[0] === '*' ? en.kind !== 'other' : types.includes(en.type));
+
 function renderHead(path, parentAvailable) {
-  pathEl.textContent = path ? `\u200E${path}\u200E` : 'This PC'; // LRMs keep the path LTR inside the RTL ellipsis box
+  pathEl.textContent = path ? `‎${path}‎` : 'This PC'; // LRMs keep the path LTR inside the RTL ellipsis box
   pathEl.title = path || 'This PC';
   copyBtn.disabled = !path;
   upBtn.disabled = !parentAvailable;
+}
+
+function titleOf(en) {
+  return en.kind === 'other' ? `${en.name} — Markly doesn't open this type` : en.kind === 'view' ? `${en.name} — ${en.type}` : en.dir ? `${en.name} — double-click to open` : en.name;
 }
 
 function render({ select, keep = false } = {}) {
   const prevSel = keep && sel >= 0 ? view[sel]?.path : null;
   const prevTop = listEl.scrollTop;
   const cur = ctx.getCurrent()?.path;
-  const all = listing.entries.map((en) => { const kind = kindOf(en); return { ...en, kind, icon: kind === 'view' ? fileType(en.name).kind : kind }; })
-    .sort((a, b) => (b.dir - a.dir) || byName(a.name, b.name));
-  view = mdOnly ? all.filter((en) => en.dir || en.kind === 'md') : all;
+  const all = listing.all;
+  view = filtering() ? all.filter(shows) : all;
   renderHead(listing.path, listing.parent != null);
   const cr = listing.crumbs || [];
   crumbsEl.innerHTML = cr.map((c, i) => (i === cr.length - 1
@@ -219,19 +244,23 @@ function render({ select, keep = false } = {}) {
     : `<button class="fb-crumb" data-path="${esc(c.path)}" title="${esc(c.path || c.name)}">${esc(c.name)}</button>`)).join('<span class="fb-sep">›</span>');
   crumbsEl.scrollLeft = crumbsEl.scrollWidth;
   if (!view.length) {
-    listEl.innerHTML = `<div class="fb-empty">${listing.entries.length ? 'No Markdown files in this folder' : 'This folder is empty'}</div>`;
+    listEl.innerHTML = all.length
+      ? `<div class="fb-empty">No ${types.length === 1 && types[0] !== '*' ? esc(types[0]) : 'matching'} files in this folder<button class="fb-showall">Show all files</button></div>`
+      : '<div class="fb-empty">This folder is empty</div>';
   } else {
-    listEl.innerHTML = view.map((en, i) => {
-      const title = en.kind === 'other' ? `${en.name} — Markly doesn't open this type` : en.kind === 'view' ? `${en.name} — ${fileType(en.name).label}` : en.dir ? `${en.name} — double-click to open` : en.name;
-      return `<div class="fb-item ${en.kind}${cur && samePath(en.path, cur) ? ' current' : ''}" role="option" id="fb-i${i}" data-i="${i}" aria-selected="false" title="${esc(title)}">${ICONS[en.icon]}<span class="fb-name">${esc(en.name)}</span></div>`;
-    }).join('');
+    listEl.innerHTML = view.map((en, i) => `<div class="fb-item ${en.kind}${cur && samePath(en.path, cur) ? ' current' : ''}" role="option" id="fb-i${i}" data-i="${i}" aria-selected="false" title="${esc(titleOf(en))}">${ICONS[en.icon]}<span class="fb-name">${esc(en.name)}</span></div>`).join('');
   }
   const counts = all.reduce((a, en) => { a[en.dir ? 0 : en.kind === 'md' ? 1 : en.kind === 'view' ? 3 : 2]++; return a; }, [0, 0, 0, 0]);
   const parts = [];
   if (counts[0]) parts.push(`${counts[0]} ${listing.path === '' ? (counts[0] === 1 ? 'drive' : 'drives') : (counts[0] === 1 ? 'folder' : 'folders')}`);
-  if (counts[1]) parts.push(`${counts[1]} Markdown`);
-  if (counts[3]) parts.push(`${counts[3]} text & code${mdOnly ? ' (hidden)' : ''}`);
-  if (counts[2]) parts.push(`${counts[2]} other${mdOnly ? ' (hidden)' : ''}`);
+  if (filtering()) {
+    const files = all.length - counts[0];
+    if (files) parts.push(`${view.length - counts[0]} of ${files} ${files === 1 ? 'file' : 'files'} shown`);
+  } else {
+    if (counts[1]) parts.push(`${counts[1]} Markdown`);
+    if (counts[3]) parts.push(`${counts[3]} text & code`);
+    if (counts[2]) parts.push(`${counts[2]} other`);
+  }
   statusEl.textContent = (parts.join(' · ') || 'Empty') + (listing.truncated ? ' · list cut off' : '');
   sel = -1; typeBuf = '';
   const want = select || prevSel || cur;
@@ -270,6 +299,87 @@ function setSel(i, scroll = true) {
   if (scroll) el.scrollIntoView({ block: 'nearest' });
 }
 
+// ---------------------------------------------------------------- file type filter
+// A menu under the filter button: every file, the files Markly opens, or any mix of the types
+// found in this folder (with counts). The choice is remembered and carries over to other folders.
+function updateFilterBtn() {
+  const on = filtering();
+  filterBtn.classList.toggle('on', on);
+  filterBtn.title = !on ? 'Filter by file type' : types[0] === '*' ? 'Showing files Markly opens' : `Showing ${types.join(', ')}`;
+}
+
+function setTypes(next) {
+  types = next;
+  ctx.LS.set('files.types', types);
+  updateFilterBtn();
+  if (listing && !failed) render({ keep: true });
+  if (!menuEl.hidden) renderMenu();
+}
+
+function renderMenu() {
+  const all = listing && !failed ? listing.all : [];
+  const byType = new Map();   // label -> { n, icon }, in list order
+  let files = 0, opens = 0;
+  for (const en of all) {
+    if (en.dir) continue;
+    files++;
+    if (!en.type) continue;
+    opens++;
+    const t = byType.get(en.type);
+    if (t) t.n++; else byType.set(en.type, { n: 1, icon: en.icon });
+  }
+  for (const t of types) if (t !== '*' && !byType.has(t)) byType.set(t, { n: 0, icon: 'other' }); // chosen elsewhere, absent here
+  const rows = [...byType].sort(([a], [b]) => (b === 'Markdown') - (a === 'Markdown') || coll.compare(a, b));
+  const radio = (set, label, n, on) => `<button class="fb-mi" role="menuitemradio" aria-checked="${on}" data-set="${set}">${TICK}<span class="fb-ml">${label}</span><span class="fb-n">${n}</span></button>`;
+  menuEl.innerHTML = radio('all', 'All files', files, !types.length) + radio('open', 'Files Markly opens', opens, types[0] === '*') +
+    '<div class="fb-mh">Only these types</div>' +
+    (rows.length
+      ? rows.map(([label, t]) => `<button class="fb-mi fb-type${t.icon === 'md' ? ' md' : ''}${t.n ? '' : ' none'}" role="menuitemcheckbox" aria-checked="${types.includes(label)}" data-type="${esc(label)}"><span class="fb-box">${TICK}</span>${ICONS[t.icon]}<span class="fb-ml">${esc(label)}</span><span class="fb-n">${t.n}</span></button>`).join('')
+      : '<div class="fb-mnone">No files Markly opens here</div>');
+}
+
+function openMenu() {
+  renderMenu();
+  menuEl.hidden = false;
+  filterBtn.setAttribute('aria-expanded', 'true');
+  (menuEl.querySelector('.fb-mi[aria-checked="true"]') || menuEl.querySelector('.fb-mi'))?.focus({ preventScroll: true });
+}
+
+function closeMenu(refocus = false) {
+  if (menuEl.hidden) return;
+  const hadFocus = menuEl.contains(document.activeElement);
+  menuEl.hidden = true;
+  filterBtn.setAttribute('aria-expanded', 'false');
+  if (refocus || hadFocus) filterBtn.focus({ preventScroll: true });
+}
+
+function onMenuClick(e) {
+  const b = e.target.closest('.fb-mi'); if (!b) return;
+  if (b.dataset.set) { setTypes(b.dataset.set === 'open' ? ['*'] : []); closeMenu(true); return; }
+  // Picking a type while every file (or every openable file) is shown starts a new selection.
+  const t = b.dataset.type;
+  const cur = types[0] === '*' ? [] : types;
+  setTypes(cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]);
+  menuEl.querySelector(`.fb-mi[data-type="${CSS.escape(t)}"]`)?.focus({ preventScroll: true }); // the menu was redrawn
+}
+
+function onMenuKey(e) {
+  const items = [...menuEl.querySelectorAll('.fb-mi')];
+  const i = items.indexOf(document.activeElement);
+  let handled = true;
+  switch (e.key) {
+    case 'ArrowDown': items[(i + 1) % items.length]?.focus(); break;
+    case 'ArrowUp': items[(i - 1 + items.length) % items.length]?.focus(); break;
+    case 'Home': items[0]?.focus(); break;
+    case 'End': items[items.length - 1]?.focus(); break;
+    case 'Escape': closeMenu(true); break;
+    case 'Tab': closeMenu(); handled = false; break;
+    default: handled = false;
+  }
+  if (handled) { e.preventDefault(); e.stopPropagation(); }
+}
+
+// ---------------------------------------------------------------- navigation & keys
 function enter(en) { navigate(en.path); }
 
 function goUp() {
@@ -313,7 +423,7 @@ function onKey(e) {
         const start = typeBuf.length === 1 ? sel + 1 : Math.max(sel, 0);
         for (let k = 0; k < view.length; k++) {
           const i = (start + k) % view.length;
-          if (view[i].name.toLowerCase().startsWith(typeBuf)) { setSel(i); break; }
+          if (view[i].key.startsWith(typeBuf)) { setSel(i); break; }
         }
       } else handled = false;
   }

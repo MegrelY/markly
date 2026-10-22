@@ -73,6 +73,7 @@
   !insertmacro MK_OFFER_EXT ".yml"
   !insertmacro MK_OFFER_EXT ".toml"
   !insertmacro MK_OFFER_EXT ".ini"
+  !insertmacro MK_OFFER_EXT ".env"
   !insertmacro MK_OFFER_EXT ".csv"
   !insertmacro MK_OFFER_EXT ".xml"
   !insertmacro MK_OFFER_EXT ".html"

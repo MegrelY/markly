@@ -189,7 +189,10 @@ const MAX_ENTRIES: usize = 5000;
 #[derive(Serialize)]
 struct Entry {
     name: String,
-    path: String,
+    /// Only for drives: the page joins the folder path and the name (sending every path would
+    /// repeat the folder once per entry).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    path: Option<String>,
     dir: bool,
 }
 
@@ -226,9 +229,15 @@ fn list_error(e: std::io::Error) -> ListError {
     ListError { kind, message: e.to_string() }
 }
 
+/// Hidden by name: dot-files and dot-folders, except dotenv files (".env", ".env.local", …), which
+/// Markly views. A folder named ".env" (often a Python virtualenv) stays hidden.
+fn is_dotfile(name: &str, dir: bool) -> bool {
+    name.starts_with('.') && (dir || (name != ".env" && !name.starts_with(".env.")))
+}
+
 /// Hidden entries are never listed: dot-files everywhere, plus the hidden/system attributes on Windows.
-fn is_hidden(name: &str, _entry: &std::fs::DirEntry) -> bool {
-    if name.starts_with('.') {
+fn is_hidden(name: &str, dir: bool, _entry: &std::fs::DirEntry) -> bool {
+    if is_dotfile(name, dir) {
         return true;
     }
     #[cfg(windows)]
@@ -278,7 +287,7 @@ fn list_drives() -> Listing {
         .filter(|i| mask & (1 << i) != 0)
         .map(|i| {
             let letter = (b'A' + i) as char;
-            Entry { name: format!("{letter}:"), path: format!("{letter}:\\"), dir: true }
+            Entry { name: format!("{letter}:"), path: Some(format!("{letter}:\\")), dir: true }
         })
         .collect();
     Listing {
@@ -312,17 +321,17 @@ async fn list_dir(path: String) -> Result<Listing, ListError> {
     let mut truncated = false;
     for entry in std::fs::read_dir(&p).map_err(list_error)?.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if is_hidden(&name, &entry) {
-            continue;
-        }
         let Ok(ft) = entry.file_type() else { continue };
         // Follow symlinks to decide folder vs file; broken links count as files.
         let dir = if ft.is_symlink() { std::fs::metadata(entry.path()).is_ok_and(|m| m.is_dir()) } else { ft.is_dir() };
+        if is_hidden(&name, dir, &entry) {
+            continue;
+        }
         if entries.len() == MAX_ENTRIES {
             truncated = true;
             break;
         }
-        entries.push(Entry { name, path: entry.path().to_string_lossy().into_owned(), dir });
+        entries.push(Entry { name, path: None, dir });
     }
     let parent = match p.parent() {
         Some(parent) => Some(parent.to_string_lossy().into_owned()),
@@ -394,6 +403,13 @@ mod tests {
         assert_eq!(decode(vec![0xFF, 0xFE, b'h', 0, b'i', 0]), "hi");
         assert_eq!(decode(vec![0xFE, 0xFF, 0, b'h', 0, b'i']), "hi");
         assert_eq!(decode(b"\xEF\xBB\xBFbom".to_vec()), "bom");
+    }
+
+    #[test]
+    fn dotenv_files_are_listed() {
+        assert!(is_dotfile(".git", true) && is_dotfile(".gitignore", false) && is_dotfile(".envrc", false) && is_dotfile(".environment", false));
+        assert!(!is_dotfile(".env", false) && !is_dotfile(".env.local", false) && !is_dotfile(".env.example", false) && !is_dotfile("prod.env", false));
+        assert!(is_dotfile(".env", true)); // a virtualenv folder
     }
 }
 

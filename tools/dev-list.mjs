@@ -14,7 +14,7 @@ export function devList(root, urlPath) {
     return { status: kind === 'notfound' ? 404 : 403, body: { kind, message: `${rel}: ${e.code}` } };
   }
   const entries = names
-    .filter((d) => !d.name.startsWith('.'))
+    .filter((d) => !d.name.startsWith('.') || (!d.isDirectory() && (d.name === '.env' || d.name.startsWith('.env.')))) // dotenv files are shown
     .map((d) => {
       const p = (rel === '/' ? '' : rel) + '/' + d.name;
       let dir = d.isDirectory();

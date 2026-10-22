@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Folder browser: filter by file type.** The filter button opens a menu listing the file types in
+  the current folder with a count for each (Markdown, JSON, Python, Environment, …). Pick one or
+  several to show only those files, or show every file, or only the files Markly opens. Folders
+  always stay visible; the choice carries over to other folders and is remembered. The status line
+  says how many files are shown. Replaces the *only Markdown* switch (that setting carries over).
+- **`.env` files**: `.env` and its variants (`.env.local`, `.env.example`, `.env.production`, …)
+  open highlighted and are listed in the folder browser (other dot-files stay hidden). The Windows
+  installer offers Markly in *Open with* for `.env`.
+
+### Performance
+- Folder browser: a listing is classified and sorted once, so changing the filter only redraws the
+  list; rows scrolled out of view are not laid out or painted; and listings no longer carry a full
+  path per entry (the panel joins folder and name), which makes them 50–75% smaller.
+
 ## 1.4.0 — 2026-10-13
 
 ### Added
