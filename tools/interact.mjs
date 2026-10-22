@@ -1,8 +1,9 @@
 // Headless interaction checks for the frontend (browser host mode).
 import puppeteer from 'puppeteer-core';
+import { fileURLToPath } from 'node:url';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 import { maybeServeList, maybeServeGit } from './dev-list.mjs';
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
 const s = http.createServer((q, r) => { if (maybeServeList(ROOT, q, r) || maybeServeGit(ROOT, q, r)) return; const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
 const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
@@ -137,6 +138,8 @@ fs.writeFileSync(path.join(TMP, 'a.md'), '# A\n');
 for (const n of ['B.md', 'a10.md', 'a2.md']) fs.writeFileSync(path.join(TMP, n), '# x\n');
 fs.writeFileSync(path.join(TMP, '.hidden.md'), '# hidden\n');
 fs.writeFileSync(path.join(TMP, 'notes.txt.bak'), 'x');
+fs.writeFileSync(path.join(TMP, '.env.local'), 'KEY=1\n');
+fs.writeFileSync(path.join(TMP, 'data.json'), '{}\n');
 fs.chmodSync(path.join(TMP, 'locked'), 0o000);
 const fb = {
   names: () => p.$$eval('#mk-files .fb-item', (a) => a.map((x) => x.querySelector('.fb-name').textContent)),
@@ -180,10 +183,22 @@ await p.evaluate(() => window.__marklyOpen('/tests/_fb_tmp/a.md'));
 await fb.waitPath('/tests/_fb_tmp');
 check('follows the current file', (await p.$eval('#mk-files .fb-item.current .fb-name', (e) => e.textContent)) === 'a.md');
 check('hidden markdown not listed', !(await fb.names()).includes('.hidden.md'));
+check('dotenv files listed', (await fb.names()).includes('.env.local'));
 await p.click('#mk-files .fb-filter');
-check('only-markdown filter, natural case-insensitive sort', JSON.stringify(await fb.names()) === '["empty","locked","a.md","a2.md","a10.md","B.md"]' && (await p.$eval('#mk-files .fb-filter', (e) => e.getAttribute('aria-pressed'))) === 'true', JSON.stringify(await fb.names()));
+await p.waitForSelector('#mk-files .fb-menu:not([hidden])');
+{
+  const rows = await p.$$eval('#mk-files .fb-menu .fb-mi', (a) => a.map((x) => `${x.querySelector('.fb-ml').textContent}:${x.querySelector('.fb-n').textContent}`));
+  check('filter menu lists the types in the folder', JSON.stringify(rows) === '["All files:7","Files Markly opens:6","Markdown:4","Environment:1","JSON:1"]', JSON.stringify(rows));
+}
+await p.click('#mk-files .fb-mi[data-type="Markdown"]');
+check('markdown-only filter, natural case-insensitive sort', JSON.stringify(await fb.names()) === '["empty","locked","a.md","a2.md","a10.md","B.md"]' && await p.$eval('#mk-files .fb-filter', (e) => e.classList.contains('on')), JSON.stringify(await fb.names()));
+await p.click('#mk-files .fb-mi[data-type="JSON"]');
+check('several types at once', JSON.stringify(await fb.names()) === '["empty","locked","a.md","a2.md","a10.md","B.md","data.json"]', JSON.stringify(await fb.names()));
+await p.keyboard.press('Escape');
+check('esc closes the filter menu', await p.$eval('#mk-files .fb-menu', (e) => e.hidden));
 await p.click('#mk-files .fb-filter');
-check('filter off shows other files', (await fb.names()).includes('notes.txt.bak'));
+await p.click('#mk-files .fb-mi[data-set="all"]');
+check('filter off shows other files', (await fb.names()).includes('notes.txt.bak') && !(await p.$eval('#mk-files .fb-filter', (e) => e.classList.contains('on'))));
 // keyboard: Home -> "empty", Enter enters, Backspace goes up, type-ahead, Enter opens
 await p.focus('#mk-files .fb-list');
 await p.keyboard.press('Home');

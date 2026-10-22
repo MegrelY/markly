@@ -39,8 +39,9 @@ From the [latest release](../../releases/latest):
 - Folder browser panel on the right (Ctrl+Shift+E):
   - Shows the document's folder with breadcrumbs, an Up button and a copyable full path.
   - Click a file to open it: Markdown (accent colour), or text, code and data files (muted, with a type icon). Double-click a folder to go into it.
-  - Other files are dimmed and never opened. Hidden files are not shown.
-  - Optional *only Markdown* filter, and full keyboard navigation.
+  - Other files are dimmed and never opened. Hidden files are not shown (except `.env` files).
+  - File type filter: show every file, only the files Markly opens, or pick any mix of the types
+    found in the folder (Markdown, JSON, Python, …, each with a count). Full keyboard navigation.
   - Resizable, refreshes when the folder changes, and remembers its state.
 - File history for files tracked in Git (Ctrl+Shift+H):
   - Lists every commit that changed the file, following renames, with short hash, subject, author and
@@ -76,7 +77,7 @@ From the [latest release](../../releases/latest):
 | HTML | `.html` `.htm` `.xhtml` | Source (formatted) or sandboxed Preview |
 | CSS | `.css` `.scss` `.less` | Highlighted; formatted by default |
 | JavaScript / TypeScript | `.js` `.mjs` `.cjs` `.jsx` `.ts` `.tsx` `.mts` `.cts` | Highlighted; formatted by default |
-| Config | `.toml` `.ini` `.cfg` `.conf` `.env` `.properties` `.editorconfig` `.gitignore` | Highlighted |
+| Config | `.toml` `.ini` `.cfg` `.conf` `.env` (also `.env.local`, `.env.example`, …) `.properties` `.editorconfig` `.gitignore` | Highlighted |
 | Data | `.csv` `.tsv` | Sortable table, or Raw |
 | Code | `.py` `.sql` `.sh` `.bash` `.zsh` `.ps1` `.bat` `.cmd` `.rs` `.go` `.java` `.c` `.h` `.cpp` `.hpp` `.cs` `.rb` `.php` `.kt` `.swift` `.lua` `.pl` `.r` `.diff` `.graphql` `.proto`, `Dockerfile`, `Makefile` | Highlighted with line numbers |
 
