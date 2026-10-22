@@ -4,12 +4,13 @@
 // "ready" (math + diagrams finished), measured from navigation start; bytes fetched; JS heap after GC;
 // renderer process memory (RSS / PSS). Also reports startup vs lazy bundle sizes of dist-web/.
 import http from 'node:http';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import puppeteer from 'puppeteer-core';
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RUNS = +(process.argv[2] || 7);
 const OUT = process.argv[3];
 const CHROME = process.env.CHROME || '/usr/bin/google-chrome';

@@ -207,19 +207,19 @@ export function attachSources(root, list) {
 let mermaidP = null;
 const MERMAID_LIGHT = {
   darkMode: false, fontSize: '14px', background: '#f7f8fa',
-  primaryColor: '#eef0ff', primaryBorderColor: '#a9acf2', primaryTextColor: '#1c2129',
-  secondaryColor: '#f4efff', secondaryBorderColor: '#c4b5fd', tertiaryColor: '#ffffff', tertiaryBorderColor: '#d5d9e0',
+  primaryColor: '#e7f5f2', primaryBorderColor: '#8ccfc2', primaryTextColor: '#1c2129',
+  secondaryColor: '#ebf4fa', secondaryBorderColor: '#a7cbe3', tertiaryColor: '#ffffff', tertiaryBorderColor: '#d5d9e0',
   lineColor: '#8a929d', textColor: '#1c2129', edgeLabelBackground: '#f7f8fa', clusterBkg: '#ffffff', clusterBorder: '#d5d9e0',
-  actorBkg: '#eef0ff', actorBorder: '#a9acf2', actorTextColor: '#1c2129', actorLineColor: '#b8bec7', signalColor: '#5d6673', signalTextColor: '#1c2129',
-  noteBkgColor: '#fff8db', noteBorderColor: '#ead27a', noteTextColor: '#3d3200', labelBoxBkgColor: '#eef0ff', labelBoxBorderColor: '#a9acf2',
+  actorBkg: '#e7f5f2', actorBorder: '#8ccfc2', actorTextColor: '#1c2129', actorLineColor: '#b8bec7', signalColor: '#5d6673', signalTextColor: '#1c2129',
+  noteBkgColor: '#fff8db', noteBorderColor: '#ead27a', noteTextColor: '#3d3200', labelBoxBkgColor: '#e7f5f2', labelBoxBorderColor: '#8ccfc2',
 };
 const MERMAID_DARK = {
   darkMode: true, fontSize: '14px', background: '#171a1f',
-  primaryColor: '#262850', primaryBorderColor: '#5f63d0', primaryTextColor: '#e6e8eb',
-  secondaryColor: '#2b2442', secondaryBorderColor: '#7c5cc4', tertiaryColor: '#1d2127', tertiaryBorderColor: '#3a414b',
-  lineColor: '#7d8590', textColor: '#dfe3e8', mainBkg: '#262850', nodeBorder: '#5f63d0', edgeLabelBackground: '#171a1f', clusterBkg: '#1d2127', clusterBorder: '#3a414b',
-  actorBkg: '#262850', actorBorder: '#5f63d0', actorTextColor: '#e6e8eb', actorLineColor: '#4a515c', signalColor: '#9aa3ae', signalTextColor: '#dfe3e8',
-  noteBkgColor: '#3a3320', noteBorderColor: '#7a6a30', noteTextColor: '#f0e6c0', labelBoxBkgColor: '#262850', labelBoxBorderColor: '#5f63d0', labelTextColor: '#e6e8eb', loopTextColor: '#dfe3e8',
+  primaryColor: '#12352f', primaryBorderColor: '#2f9585', primaryTextColor: '#e6e8eb',
+  secondaryColor: '#152c3b', secondaryBorderColor: '#3a7ca3', tertiaryColor: '#1d2127', tertiaryBorderColor: '#3a414b',
+  lineColor: '#7d8590', textColor: '#dfe3e8', mainBkg: '#12352f', nodeBorder: '#2f9585', edgeLabelBackground: '#171a1f', clusterBkg: '#1d2127', clusterBorder: '#3a414b',
+  actorBkg: '#12352f', actorBorder: '#2f9585', actorTextColor: '#e6e8eb', actorLineColor: '#4a515c', signalColor: '#9aa3ae', signalTextColor: '#dfe3e8',
+  noteBkgColor: '#3a3320', noteBorderColor: '#7a6a30', noteTextColor: '#f0e6c0', labelBoxBkgColor: '#12352f', labelBoxBorderColor: '#2f9585', labelTextColor: '#e6e8eb', loopTextColor: '#dfe3e8',
 };
 let mermaidSeq = 0;
 export async function renderMermaid(root, dark) {

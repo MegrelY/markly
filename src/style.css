@@ -34,13 +34,14 @@
   --surface-2: #f1f3f6;
   --text: #1c2129;
   --text-strong: #0d1117;
-  --muted: #5d6673;
-  --faint: #8a929d;
+  --muted: #545c67;
+  --faint: #6a727d;
   --border: #e3e6eb;
   --border-soft: #eceef2;
   --border-strong: #cfd4db;
-  --accent: #5b5bd6;
-  --accent-soft: rgba(91, 91, 214, 0.10);
+  --accent: #0f766e;
+  --accent-soft: rgba(15, 118, 110, 0.10);
+  --on-accent: #ffffff;
   --link: #3b5bdb;
   --code-bg: #f6f8fa;
   --inline-code-bg: rgba(110, 118, 129, 0.12);
@@ -64,13 +65,14 @@
   --surface-2: #1d2127;
   --text: #dfe3e8;
   --text-strong: #f3f5f7;
-  --muted: #9aa3ae;
-  --faint: #6d7580;
+  --muted: #a4acb7;
+  --faint: #858d98;
   --border: #2a2f37;
   --border-soft: #23272e;
   --border-strong: #3a414b;
-  --accent: #8b8cf8;
-  --accent-soft: rgba(139, 140, 248, 0.14);
+  --accent: #3fc7b3;
+  --accent-soft: rgba(63, 199, 179, 0.13);
+  --on-accent: #0b0d10;
   --link: #84a9ff;
   --code-bg: #161a20;
   --inline-code-bg: rgba(140, 150, 165, 0.17);
@@ -201,10 +203,10 @@ html.toc-hidden #mk-toc, html.toc-empty #mk-toc, html.no-doc #mk-toc { display: 
 #mk-welcome { min-height: 100%; display: grid; place-items: center; padding: 40px 20px; }
 #mk-welcome[hidden] { display: none; }
 .welcome-card { text-align: center; max-width: 520px; width: 100%; }
-.welcome-logo svg { width: 64px; height: 64px; filter: drop-shadow(0 8px 18px rgba(99, 102, 241, .35)); }
+.welcome-logo svg { width: 64px; height: 64px; filter: drop-shadow(0 8px 18px rgba(15, 118, 110, .30)); }
 .welcome-card h1 { font-size: 28px; letter-spacing: -0.02em; margin: 14px 0 4px; color: var(--text-strong); }
 .welcome-sub { color: var(--muted); margin: 0 0 22px; font-size: 15px; }
-.primary-btn { background: var(--accent); color: #fff; border: 0; border-radius: 9px; padding: 10px 18px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
+.primary-btn { background: var(--accent); color: var(--on-accent); border: 0; border-radius: 9px; padding: 10px 18px; font-weight: 600; font-size: 14px; cursor: pointer; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--accent) 70%, transparent); }
 .primary-btn:hover { filter: brightness(1.07); }
 .welcome-hint { color: var(--faint); font-size: 13px; margin: 12px 0 26px; }
 .welcome-hint code { font-family: var(--font-mono); font-size: 12px; background: var(--inline-code-bg); padding: 1px 5px; border-radius: 5px; }
@@ -415,9 +417,9 @@ kbd {
 /* ===================================================================== print */
 @media print {
   [data-theme='dark'] {
-    --bg: #fff; --surface: #f7f8fa; --surface-2: #f1f3f6; --text: #1c2129; --text-strong: #0d1117; --muted: #5d6673; --faint: #8a929d;
+    --bg: #fff; --surface: #f7f8fa; --surface-2: #f1f3f6; --text: #1c2129; --text-strong: #0d1117; --muted: #545c67; --faint: #6a727d;
     --border: #e3e6eb; --border-soft: #eceef2; --border-strong: #cfd4db; --link: #3b5bdb; --code-bg: #f6f8fa; --inline-code-bg: rgba(110,118,129,.12);
-    --row-alt: #fafbfc; --accent: #5b5bd6; --accent-soft: rgba(91,91,214,.1);
+    --row-alt: #fafbfc; --accent: #0f766e; --accent-soft: rgba(15,118,110,.1); --on-accent: #fff;
     --hl-keyword: #cf222e; --hl-string: #0a3069; --hl-title: #8250df; --hl-number: #0550ae; --hl-comment: #6e7781; --hl-type: #953800; --hl-tag: #116329; --hl-meta: #6639ba;
     --note: #0969da; --tip: #1a7f37; --important: #8250df; --warning: #9a6700; --caution: #d1242f; color-scheme: light;
   }

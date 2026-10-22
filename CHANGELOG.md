@@ -12,6 +12,14 @@
   open highlighted and are listed in the folder browser (other dot-files stay hidden). The Windows
   installer offers Markly in *Open with* for `.env`.
 
+### Changed
+- **New look.** A teal accent replaces the purple across the app: Markdown files in the folder
+  browser, selected rows, toggles and the contents highlight. Diagrams use matching teal tones.
+- **New icon**: a teal bookmark with an "M", on a transparent background, in the installers, the
+  window and taskbar, and the welcome screen. The sample banner uses it too.
+- **Better contrast**: secondary text (status line, counts, menu headings, captions) now meets
+  WCAG AA (4.5:1) in both themes, and buttons in the accent color use dark text in dark mode.
+
 ### Performance
 - Folder browser: a listing is classified and sorted once, so changing the filter only redraws the
   list; rows scrolled out of view are not laid out or painted; and listings no longer carry a full
