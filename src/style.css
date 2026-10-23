@@ -156,6 +156,7 @@ html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-copy, html.no-doc 
 .menu-ctx { position: fixed; top: 0; min-width: 220px; max-width: 340px; z-index: 40; }
 .menu-sep { height: 1px; margin: 4px 6px; background: var(--border-soft); }
 .copy-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; cursor: pointer; color: var(--muted); }
+.copy-item[hidden] { display: none; }
 .copy-item:hover, .copy-item:focus-visible { background: var(--surface-2); color: var(--text-strong); outline: none; }
 .copy-item > svg { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ci-text { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
@@ -254,7 +255,7 @@ kbd {
 .markdown-body h6 { font-size: .85em; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .markdown-body h1 + h2 { margin-top: 1em; }
 .heading-anchor {
-  position: absolute; inset-inline-start: -1.1em; width: 1em; text-align: center;
+  position: absolute; inset-inline-start: -1.1em; width: 1em; text-align: center; user-select: none; /* not copied with the heading */
   color: var(--faint) !important; text-decoration: none !important; font-weight: 500; opacity: 0; transition: opacity .12s;
 }
 :is(h1, h2, h3, h4, h5, h6):hover > .heading-anchor { opacity: 1; }

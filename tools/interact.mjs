@@ -2,6 +2,7 @@
 import puppeteer from 'puppeteer-core';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { maybeServeList, maybeServeGit } from './dev-list.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
@@ -95,7 +96,7 @@ check('alt+left goes back', true);
 check('copy enabled with a file', await p.$eval('#btn-copy', (e) => !e.disabled));
 check('copy button next to find', await p.$eval('#btn-find', (e) => e.nextElementSibling?.querySelector('#btn-copy') !== null));
 await p.click('#btn-copy');
-check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && e.querySelectorAll('.copy-item:not([hidden])').length === 2));
+check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && [...e.querySelectorAll('.copy-item')].filter((i) => i.offsetParent).length === 2));
 check('copy menu shows path', (await p.$eval('#copy-path-sub', (e) => e.textContent)) === '/samples/showcase.md');
 await p.click('#copy-path');
 await sleep(100);
@@ -130,7 +131,13 @@ await p.keyboard.press('Escape');
 await p.evaluate(() => window.__marklyOpen('/samples/showcase.md'));
 await p.waitForFunction(() => document.title.startsWith('showcase.md'));
 const TMP = path.join(ROOT, 'tests/_fb_tmp');
-try { fs.chmodSync(path.join(TMP, 'locked'), 0o755); } catch { /* not there */ }
+// A folder that can't be listed: chmod elsewhere; on Windows (where chmod can't) an ACL entry
+// denying the current user "list folder".
+const lockDir = (d, on) => {
+  if (process.platform !== 'win32') { fs.chmodSync(d, on ? 0o000 : 0o755); return; }
+  execFileSync('icacls', on ? [d, '/deny', `${process.env.USERNAME}:(RD)`] : [d, '/remove:d', process.env.USERNAME], { stdio: 'ignore' });
+};
+try { lockDir(path.join(TMP, 'locked'), false); } catch { /* not there */ }
 fs.rmSync(TMP, { recursive: true, force: true });
 fs.mkdirSync(path.join(TMP, 'empty'), { recursive: true });
 fs.mkdirSync(path.join(TMP, 'locked'));
@@ -140,7 +147,7 @@ fs.writeFileSync(path.join(TMP, '.hidden.md'), '# hidden\n');
 fs.writeFileSync(path.join(TMP, 'notes.txt.bak'), 'x');
 fs.writeFileSync(path.join(TMP, '.env.local'), 'KEY=1\n');
 fs.writeFileSync(path.join(TMP, 'data.json'), '{}\n');
-fs.chmodSync(path.join(TMP, 'locked'), 0o000);
+lockDir(path.join(TMP, 'locked'), true);
 const fb = {
   names: () => p.$$eval('#mk-files .fb-item', (a) => a.map((x) => x.querySelector('.fb-name').textContent)),
   path: () => p.$eval('#mk-files .fb-path', (e) => e.textContent.replace(/\u200E/g, '')),
@@ -256,12 +263,11 @@ const w2 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
 check('open state and width remembered', Math.abs(w2 - w1) <= 1, `${w2}`);
 await p.click('#btn-files');
 check('toolbar button closes panel', await p.$eval('#mk-files', (e) => e.hidden));
-fs.chmodSync(path.join(TMP, 'locked'), 0o755);
+lockDir(path.join(TMP, 'locked'), false);
 fs.rmSync(TMP, { recursive: true, force: true });
 
 // ---------------------------------------------------------------- file history (git fixture)
 {
-  const { execFileSync } = await import('node:child_process');
   const FX = path.join(ROOT, 'tests/_git_fixture');
   execFileSync('bash', [path.join(ROOT, 'tools/make-git-fixture.sh'), FX, '--dirty']);
   fs.writeFileSync(path.join(FX, 'untracked.md'), '# Not committed\n');
@@ -392,13 +398,13 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await p.click('#btn-copy'); await p.waitForSelector('#copy-formatted:not([hidden])');
   await p.click('#copy-formatted'); await sleep(150);
   const fmtClip = await clip();
-  check('copy formatted copies the formatted text', fmtClip.startsWith('{\n  "name": "markly"'));
+  check('copy formatted copies the formatted text', fmtClip.replace(/\r\n/g, '\n').startsWith('{\n  "name": "markly"')); // (Windows' clipboard uses CRLF)
   await p.click('#btn-copy'); await p.click('#copy-content'); await sleep(150);
   check('copy content copies the file as on disk', (await clip()) === fs.readFileSync(path.join(ROOT, 'tests/files/data.json'), 'utf8'));
   await p.click('[data-seg="fmt"][data-val="original"]'); await p.waitForSelector('[data-seg="fmt"][data-val="original"][aria-pressed="true"]');
   v = await st();
   check('formatted/original toggle shows the file as written', v.lines === 1 && v.text.startsWith('{"name":"markly"'));
-  await p.click('#btn-copy'); check('copy formatted hidden in the original view', await p.$eval('#copy-formatted', (e) => e.hidden)); await p.keyboard.press('Escape');
+  await p.click('#btn-copy'); check('copy formatted hidden in the original view', await p.$eval('#copy-formatted', (e) => e.hidden && !e.offsetParent)); await p.keyboard.press('Escape');
   await open('min.js'); check('original view is remembered', (await st()).lines === 2);
   await p.click('[data-seg="fmt"][data-val="formatted"]'); await p.waitForSelector('[data-seg="fmt"][data-val="formatted"][aria-pressed="true"]');
   check('js: formatted with Prettier', (await st()).text.includes('function f(x) {\n  if (x) {'));
@@ -518,18 +524,19 @@ fs.rmSync(TMP, { recursive: true, force: true });
     return m.hidden ? null : [...m.querySelectorAll('.ci-label')].map((e) => e.textContent);
   }, sel, select);
   const pick = async (i) => { await p.click(`#ctx-menu button[data-i="${i}"]`); await sleep(100); };
-  check('right-click selected text: copy and search', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Search Google for “# Web”']));
+  check('right-click selected text: copy, search, highlight, pin', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Search Google for “Web”', 'Highlight', 'Pin this spot']));
   await pick(1);
-  check('search opens Google with the selection', (await opened())[0] === 'https://www.google.com/search?q=%23%20Web' && await p.$eval('#ctx-menu', (e) => e.hidden));
+  check('search opens Google with the selection (without the heading\'s #)', (await opened())[0] === 'https://www.google.com/search?q=Web' && await p.$eval('#ctx-menu', (e) => e.hidden));
   await rightClick('#mk-content h1', true); await pick(0);
-  check('copy from the right-click menu', (await clip()) === '# Web');
-  check('right-click a selected URL: open instead of search', JSON.stringify(await rightClick('#mk-content p code .bare-url', true)) === JSON.stringify(['Copy', 'Open in browser']));
+  check('copy from the right-click menu', (await clip()) === 'Web');
+  check('right-click a selected URL: open instead of search', JSON.stringify(await rightClick('#mk-content p code .bare-url', true)) === JSON.stringify(['Copy', 'Open in browser', 'Highlight', 'Pin this spot']));
   await pick(1);
   check('open selected URL', (await opened())[0] === 'https://example.net/inline');
-  check('right-click a link: open and copy address', JSON.stringify(await rightClick('#mk-content a[href^="https://example.com/a"]', false)) === JSON.stringify(['Open link in browser', 'Copy link address']));
+  check('right-click a link: open and copy address', JSON.stringify(await rightClick('#mk-content a[href^="https://example.com/a"]', false)) === JSON.stringify(['Open link in browser', 'Copy link address', 'Pin this spot']));
   await pick(1);
   check('copy link address', (await clip()) === 'https://example.com/a?b=1&c=2');
-  check('right-click plain text without a selection: no menu', (await rightClick('#mk-content h1', false)) === null);
+  check('right-click plain text without a selection: only pin', JSON.stringify(await rightClick('#mk-content h1', false)) === JSON.stringify(['Pin this spot']));
+  await p.keyboard.press('Escape');
   await rightClick('#mk-content pre .bare-url', false); await p.keyboard.press('Escape');
   check('Esc closes the right-click menu', await p.$eval('#ctx-menu', (e) => e.hidden));
   fs.rmSync(path.join(ROOT, 'tests/files/weblinks.md'));
@@ -586,7 +593,9 @@ fs.rmSync(TMP, { recursive: true, force: true });
   s = await state();
   check('highlight the selected text', JSON.stringify(s.hl) === JSON.stringify([['default profile', 'Run it']]) && s.list.endsWith('Highlights | “default profile”'), JSON.stringify(s.hl));
   const atHl = await p.evaluate(() => {
-    const r = CSS.highlights.get('mk-hl').values().next().value, b = r.getBoundingClientRect();
+    const r = CSS.highlights.get('mk-hl').values().next().value;
+    r.startContainer.parentElement.scrollIntoView({ block: 'center' }); // the point must be on screen
+    const b = r.getBoundingClientRect();
     getSelection().removeAllRanges();
     r.startContainer.parentElement.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 3, clientY: b.top + b.height / 2 }));
     return [...document.querySelectorAll('#ctx-menu .ci-label')].map((e) => e.textContent);
