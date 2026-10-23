@@ -25,6 +25,30 @@ const ALIAS = { sh: 'bash', zsh: 'bash', shell: 'bash', console: 'bash', ps: 'po
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+// --- Bare URLs in code and plain text: spans that open with Ctrl+click (app.js), not links ---
+// Works on escaped HTML: `&amp;` belongs to the URL; any other entity, a quote or a tag ends it.
+const BARE_URL = /\bhttps?:\/\/(?:[^\s<>"'`&]|&amp;)+/gi;
+const CLOSERS = { ')': '(', ']': '[', '}': '{' };
+function trimUrl(u) {
+  for (;;) {
+    const c = u[u.length - 1];
+    if (u.endsWith('&amp;')) u = u.slice(0, -5);
+    else if ('.,:;!?*'.includes(c)) u = u.slice(0, -1);
+    else if (CLOSERS[c] && u.split(c).length > u.split(CLOSERS[c]).length) u = u.slice(0, -1); // unbalanced
+    else return u;
+  }
+}
+/** Wraps the http(s) URLs in `html` in `.bare-url` spans. `html` is escaped text or highlight.js
+ *  output: a URL can't cross a tag, and the tags themselves hold none. */
+export function linkifyUrls(html) {
+  if (!html.includes('://')) return html;
+  return html.replace(BARE_URL, (u) => {
+    const url = trimUrl(u);
+    if (url.length <= url.indexOf('://') + 3) return u;
+    return `<span class="bare-url" data-url="${url}">${url}</span>${u.slice(url.length)}`;
+  });
+}
+
 function slugify(s) {
   return String(s).trim().toLowerCase()
     .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, '')
@@ -87,11 +111,16 @@ md.renderer.rules.fence = (tokens, idx) => {
   if (l && hljs && hljs.getLanguage(l)) {
     try { html = hljs.highlight(code, { language: l, ignoreIllegals: true }).value; } catch { html = esc(code); }
   } else html = esc(code);
+  html = linkifyUrls(html);
   const label = lang || 'text';
   return `<div class="code-block"><div class="code-head"><span class="code-lang">${esc(label)}</span>` +
     `<button class="code-copy" type="button" aria-label="Copy code">Copy</button></div>` +
     `<pre><code class="hljs${l ? ' language-' + esc(l) : ''}">${html}</code></pre></div>\n`;
 };
+md.renderer.rules.code_block = (tokens, idx, opts, env, self) =>
+  `<pre${self.renderAttrs(tokens[idx])}><code>${linkifyUrls(esc(tokens[idx].content))}</code></pre>\n`;
+md.renderer.rules.code_inline = (tokens, idx, opts, env, self) =>
+  `<code${self.renderAttrs(tokens[idx])}>${linkifyUrls(esc(tokens[idx].content))}</code>`;
 
 // --- Sanitizing (documents may come from anywhere; the webview has IPC access) ---
 let ctx = { baseDir: '', assetUrl: (p) => p };

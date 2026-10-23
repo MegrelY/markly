@@ -482,6 +482,69 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await p.waitForFunction(() => document.title.startsWith('links.md'), { timeout: 5000 }).catch(() => {});
   check('back returns to the Markdown file (rendered)', (await p.title()) === 'links.md — Markly' && !(await p.$('.vw')));
   fs.rmSync(path.join(ROOT, 'tests/files/links.md'));
+
+  // web links open in the default browser: links on click, URLs in code and plain text on Ctrl+click
+  await p.evaluate(() => { window.__opened = []; window.open = (u) => { window.__opened.push(u); }; });
+  const opened = () => p.evaluate(() => window.__opened.splice(0));
+  const ctrlClick = async (sel) => { await p.keyboard.down('Control'); await p.click(sel); await p.keyboard.up('Control'); await sleep(50); };
+  fs.writeFileSync(path.join(ROOT, 'tests/files/weblinks.md'), '# Web\n\n[site](https://example.com/a?b=1&c=2) and https://example.org/auto.\n\n' +
+    'Inline `https://example.net/inline` code.\n\n```bash\ncurl "https://api.example.com/v1/items?x=1&y=2"\n```\n\n[`https://example.com/in-link`](https://example.com/target)\n\n' +
+    '[titled](https://example.com/t "Docs") and [a file](data.json)\n');
+  await p.evaluate((x) => window.__marklyOpen(x), F + 'weblinks.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
+  await p.click('#mk-content a[href^="https://example.com/a"]'); await p.click('#mk-content a[href^="https://example.org"]'); await sleep(50);
+  check('markdown: web links open in the browser on click', JSON.stringify(await opened()) === JSON.stringify(['https://example.com/a?b=1&c=2', 'https://example.org/auto']));
+  check('markdown: URLs in code are marked, trailing quote/punctuation left out', JSON.stringify(await p.$$eval('#mk-content .bare-url', (a) => a.map((e) => e.dataset.url))) ===
+    JSON.stringify(['https://example.net/inline', 'https://api.example.com/v1/items?x=1&y=2', 'https://example.com/in-link']));
+  await p.click('#mk-content pre .bare-url'); await sleep(50);
+  check('code URL: plain click does not open it', (await opened()).length === 0);
+  await ctrlClick('#mk-content pre .bare-url');
+  check('code URL: Ctrl+click opens it', (await opened())[0] === 'https://api.example.com/v1/items?x=1&y=2');
+  await p.click('#mk-content a .bare-url'); await sleep(50);
+  check('code inside a link follows the link', (await opened())[0] === 'https://example.com/target');
+  check('link tooltips show the address, after the link\'s own title', JSON.stringify(await p.$$eval('#mk-content a[href^="https://example.com/a"], #mk-content a[href="https://example.com/t"], #mk-content a[href="data.json"]', (a) => a.map((e) => e.title))) ===
+    JSON.stringify(['https://example.com/a?b=1&c=2', 'Docs\nhttps://example.com/t', 'data.json']));
+  await p.click('#mk-content a[href^="https://example.org"]', { button: 'middle' }); await p.click('#mk-content pre .bare-url', { button: 'middle' }); await sleep(50);
+  check('middle-click opens links and code URLs', JSON.stringify(await opened()) === JSON.stringify(['https://example.org/auto', 'https://api.example.com/v1/items?x=1&y=2']));
+  check('copy code keeps the URL text', await p.$eval('#mk-content pre code', (e) => e.textContent.includes('curl "https://api.example.com/v1/items?x=1&y=2"')));
+
+  // right-click menu: selected text (copy, search or open) and links (open, copy address)
+  const rightClick = (sel, select) => p.evaluate((sel, select) => {
+    const el = document.querySelector(sel);
+    if (select) { const r = document.createRange(); r.selectNodeContents(el); getSelection().removeAllRanges(); getSelection().addRange(r); }
+    else getSelection().removeAllRanges();
+    const b = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4 }));
+    const m = document.getElementById('ctx-menu');
+    return m.hidden ? null : [...m.querySelectorAll('.ci-label')].map((e) => e.textContent);
+  }, sel, select);
+  const pick = async (i) => { await p.click(`#ctx-menu button[data-i="${i}"]`); await sleep(100); };
+  check('right-click selected text: copy and search', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Search Google for “# Web”']));
+  await pick(1);
+  check('search opens Google with the selection', (await opened())[0] === 'https://www.google.com/search?q=%23%20Web' && await p.$eval('#ctx-menu', (e) => e.hidden));
+  await rightClick('#mk-content h1', true); await pick(0);
+  check('copy from the right-click menu', (await clip()) === '# Web');
+  check('right-click a selected URL: open instead of search', JSON.stringify(await rightClick('#mk-content p code .bare-url', true)) === JSON.stringify(['Copy', 'Open in browser']));
+  await pick(1);
+  check('open selected URL', (await opened())[0] === 'https://example.net/inline');
+  check('right-click a link: open and copy address', JSON.stringify(await rightClick('#mk-content a[href^="https://example.com/a"]', false)) === JSON.stringify(['Open link in browser', 'Copy link address']));
+  await pick(1);
+  check('copy link address', (await clip()) === 'https://example.com/a?b=1&c=2');
+  check('right-click plain text without a selection: no menu', (await rightClick('#mk-content h1', false)) === null);
+  await rightClick('#mk-content pre .bare-url', false); await p.keyboard.press('Escape');
+  check('Esc closes the right-click menu', await p.$eval('#ctx-menu', (e) => e.hidden));
+  fs.rmSync(path.join(ROOT, 'tests/files/weblinks.md'));
+
+  fs.writeFileSync(path.join(ROOT, 'tests/files/urls.txt'), 'Docs: https://example.com/docs, and (https://example.com/x).\nNo link: ftp://example.com\n');
+  await open('urls.txt');
+  check('txt: URLs marked', JSON.stringify(await p.$$eval('.vw-body .bare-url', (a) => a.map((e) => e.dataset.url))) === JSON.stringify(['https://example.com/docs', 'https://example.com/x']));
+  check('txt: text unchanged', (await st()).text.startsWith('Docs: https://example.com/docs, and (https://example.com/x).'));
+  await p.hover('.vw-body .bare-url');
+  check('txt: URL hint on hover', (await p.$eval('.vw-body .bare-url', (e) => e.title)).includes('click to open'));
+  await ctrlClick('.vw-body .bare-url');
+  check('txt: Ctrl+click opens the URL', (await opened())[0] === 'https://example.com/docs');
+  fs.rmSync(path.join(ROOT, 'tests/files/urls.txt'));
+  await open('page.html'); await ctrlClick('.vw-body .bare-url');
+  check('html source: URLs in attributes open on Ctrl+click', (await opened())[0] === 'https://example.com');
 }
 
 // sanitizer

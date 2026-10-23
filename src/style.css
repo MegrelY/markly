@@ -153,6 +153,8 @@ html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-copy, html.no-doc 
 .menu-clear { display: block; width: 100%; text-align: left; border: 0; border-top: 1px solid var(--border-soft); margin-top: 4px; padding: 8px 10px 4px; background: none; color: var(--muted); font-size: 12px; cursor: pointer; }
 .menu-clear:hover { color: var(--danger); }
 .menu-copy { left: auto; right: 0; min-width: 260px; max-width: 360px; }
+.menu-ctx { position: fixed; top: 0; min-width: 220px; max-width: 340px; z-index: 40; }
+.menu-sep { height: 1px; margin: 4px 6px; background: var(--border-soft); }
 .copy-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; border-radius: 7px; cursor: pointer; color: var(--muted); }
 .copy-item:hover, .copy-item:focus-visible { background: var(--surface-2); color: var(--text-strong); outline: none; }
 .copy-item > svg { flex: 0 0 auto; width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
@@ -260,6 +262,9 @@ kbd {
 
 .markdown-body a { color: var(--link); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--link) 35%, transparent); text-underline-offset: .2em; text-decoration-thickness: 1px; }
 .markdown-body a:hover { text-decoration-color: var(--link); }
+/* URLs in code and plain text: Ctrl+click opens them; holding Ctrl (⌘) shows them as links. */
+.bare-url:hover { text-decoration: underline dotted; text-underline-offset: .2em; }
+.mod-held .bare-url:hover { cursor: pointer; color: var(--link); text-decoration: underline solid; }
 .markdown-body strong { font-weight: 650; color: var(--text-strong); }
 .markdown-body del { color: var(--muted); text-decoration-color: color-mix(in srgb, var(--muted) 70%, transparent); }
 .markdown-body mark { background: var(--mark); color: inherit; padding: 0 .15em; border-radius: 3px; }
