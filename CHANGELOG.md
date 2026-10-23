@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0 — 2026-10-23
 
 ### Added
 - **Folder browser: filter by file type.** The filter button opens a menu listing the file types in
