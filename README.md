@@ -96,29 +96,38 @@ Files over 1 MB are shown as written (not formatted), files over 5 MB as plain t
 with a short "not a text file" note. Installers add Markly to *Open with* for `.txt .log .json .yaml
 .yml .toml .ini .csv .xml .html .htm .css .js .ts .py`, but never make it the default for them.
 
-## Keyboard shortcuts
+## Shortcuts
 
-On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forward.
+The keyboard shortcuts, and what clicks and right-clicks do. On macOS use ⌘ wherever the table says
+Ctrl (⌘[ and ⌘] also go back and forward).
 
-| Action | Keys |
+| To | Do this |
 |---|---|
-| Open file | Ctrl+O |
-| Find / next / previous | Ctrl+F, Enter / F3, Shift+Enter / Shift+F3 |
-| Copy file path | Ctrl+Shift+C |
-| Folder browser on / off | Ctrl+Shift+E |
-| File history on / off | Ctrl+Shift+H |
-| In the file history | ↑ ↓ Home End to pick a commit, Enter to view the file at that commit, Ctrl+click to compare, Esc to close |
-| In the folder browser | ↑ ↓ Home End to move, Enter to open, Backspace / Alt+↑ for Up, type to jump, Esc back to the document |
-| Table of contents | Ctrl+\ |
-| Zoom in / out / reset | Ctrl + = / Ctrl + - / Ctrl + 0, or Ctrl + mouse wheel |
-| Print / Save as PDF | Ctrl+P |
-| Toggle theme | Ctrl+Shift+L |
-| Reload | F5 |
-| Back / forward (between linked docs) | Alt+← / Alt+→ or mouse back/forward buttons |
-| Open a URL in code or plain text in the browser | Ctrl+click |
-| Pin / unpin the spot at the top of the window | Ctrl+F2 |
-| Next / previous pin | F2 / Shift+F2 |
-| Close window | Ctrl+W |
+| **Files** | |
+| Open a file | Ctrl+O, or drop it on the window |
+| Browse the folder | Ctrl+Shift+E, then ↑ ↓ to move, Enter to open, Backspace for the parent folder, type to jump, Esc to return |
+| See the file's Git history | Ctrl+Shift+H, then ↑ ↓ to pick a commit, Enter to view the file at it, Ctrl+click a second commit to compare, Esc to close |
+| Copy the file's path | Ctrl+Shift+C |
+| Reload / close the window | F5 / Ctrl+W |
+| **Move around** | |
+| Find, then next / previous match | Ctrl+F, then Enter / Shift+Enter (or F3 / Shift+F3) |
+| Show or hide the contents | Ctrl+\ |
+| Go to the top / end | Home / End |
+| Go back / forward between linked files | Alt+← / Alt+→, or the mouse's back and forward buttons |
+| Continue where you left off | Just reopen the file |
+| **Pins and highlights** (kept by Markly; the file is never changed) | |
+| Pin a spot to come back to | Right-click it and choose *Pin this spot*, or Ctrl+F2 to pin the top of the window (again to unpin) |
+| Jump to the next / previous pin | F2 / Shift+F2 |
+| Highlight text | Select it, right-click and choose *Highlight* (right-click it again to remove) |
+| Go to a pin or highlight | Click it in the sidebar under the contents |
+| **Links and text** | |
+| Open a link (web links open in your browser) | Click, or middle-click |
+| Open a URL inside code or plain text | Ctrl+click |
+| Copy a link, or search Google for selected text | Right-click |
+| **View** | |
+| Zoom in / out / reset | Ctrl+= / Ctrl+- / Ctrl+0, or Ctrl+mouse wheel |
+| Switch theme (System → Light → Dark) | Ctrl+Shift+L |
+| Print or save as PDF | Ctrl+P |
 
 ## Install
 
