@@ -26,13 +26,16 @@ const tauriHost = {
   assetUrl: (p) => convertFileSrc(p),
   readImage: (path) => invoke('read_image', { path }),
   pickFile: async () => {
+    const md = ['md', 'markdown', 'mdown', 'mkd', 'mkdn', 'mdx'];
+    const other = ['txt', 'log', 'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'csv', 'tsv',
+      'xml', 'svg', 'html', 'htm', 'css', 'scss', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'sh', 'ps1', 'bat', 'sql', 'rs', 'go',
+      'java', 'c', 'h', 'cpp', 'hpp', 'cs', 'rb', 'php', 'kt', 'swift', 'lua', 'env', 'gitignore', 'editorconfig', 'dockerfile'];
     const r = await openDialog({
-      multiple: false, directory: false, title: 'Open Markdown file',
+      multiple: false, directory: false, title: 'Open a file',
       filters: [
-        { name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'mkd', 'mkdn', 'mdx'] },
-        { name: 'Text, code and data', extensions: ['txt', 'log', 'json', 'jsonc', 'yaml', 'yml', 'toml', 'ini', 'cfg', 'conf', 'csv', 'tsv',
-          'xml', 'svg', 'html', 'htm', 'css', 'scss', 'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'py', 'sh', 'ps1', 'bat', 'sql', 'rs', 'go',
-          'java', 'c', 'h', 'cpp', 'hpp', 'cs', 'rb', 'php', 'kt', 'swift', 'lua', 'env', 'gitignore', 'editorconfig', 'dockerfile'] },
+        { name: 'Markdown, text, code and data', extensions: [...md, ...other] },
+        { name: 'Markdown', extensions: md },
+        { name: 'Text, code and data', extensions: other },
         { name: 'All files', extensions: ['*'] },
       ],
     });

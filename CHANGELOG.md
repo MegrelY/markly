@@ -32,11 +32,17 @@
 - **New tagline: *Read anything, beautifully.*** Markly opens more than Markdown now, so the welcome
   screen (*Open a file…*), the sample banner, the README and the app's descriptions in the
   installers, Windows *Open with* and the Linux app menu say so.
+- **Open dialog** (Ctrl+O): titled *Open a file*, and it lists every type Markly opens by default
+  (Markdown, text, code and data) instead of Markdown only. *Markdown*, *Text, code and data* and
+  *All files* are still in the type list.
 
 ### Fixed
 - **Web links open in your default browser.** Clicking an `https://`, `http://`, `mailto:` or
   `tel:` link showed "Not allowed to open url …": the window was allowed to open URLs, but no
   address was in scope.
+- The Copy menu showed *Copy formatted* for Markdown files too, where it does nothing. It now only
+  appears in the Formatted view of code and data files.
+- Copying or searching for a selected heading no longer includes its hidden `#` anchor.
 
 ## 1.5.0 — 2026-10-23
 

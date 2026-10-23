@@ -273,6 +273,9 @@ Frontend only: `npm run build` (writes `dist-web/`). Then:
 - `node tools/screenshot.mjs` renders the sample in headless Chrome.
 - `node tools/interact.mjs` runs the UI checks (it builds a small Git repository with
   `tools/make-git-fixture.sh` for the history tests).
+- Both use the browser in `CHROME` (default `/usr/bin/google-chrome`). On Windows, point it at any Chrome
+  or Chromium, such as Playwright's (`%LOCALAPPDATA%\ms-playwright\chromium-*\chrome-win64\chrome.exe`). In
+  Git Bash, add `MSYS_NO_PATHCONV=1` before passing a `/samples/…` path, or Bash rewrites it.
 - `cargo test --manifest-path src-tauri/Cargo.toml` runs the Rust tests (git commands on a temporary repository).
 - `node tools/bench.mjs` measures first-render time and memory.
 
