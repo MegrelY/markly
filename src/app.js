@@ -14,7 +14,10 @@ const ctxMenu = $('ctx-menu');
 const LS = {
   get: (k, d) => { try { const v = localStorage.getItem('markly.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
   set: (k, v) => { try { localStorage.setItem('markly.' + k, JSON.stringify(v)); } catch { /* ignore */ } },
+  del: (k) => { try { localStorage.removeItem('markly.' + k); } catch { /* ignore */ } },
 };
+/** A file's key for what Markly remembers about it (Windows paths ignore case and slash style). */
+const fileKey = (p) => (/^([a-z]:|\\\\)/i.test(p) ? p.replace(/\//g, '\\').toLowerCase() : p);
 
 // Links to these are never launched from a document (they could run code).
 // Windows, then macOS (bundles, Terminal scripts, installers), then Linux (launchers, scripts, packages).
@@ -254,7 +257,7 @@ function loadViewer() {
   viewerP ||= import('./viewer.js').then(async (m) => {
     await m.init({
       LS, highlightCode, sanitizePreview, linkifyUrls, assetUrl: host.assetUrl,
-      changed: () => { if (findState.open && findState.query) runFind(findState.query, false); },
+      changed: () => { if (findState.open && findState.query) runFind(findState.query, false); marksMod?.refresh(); },
     });
     viewerMod = m;
     return m;
@@ -325,9 +328,69 @@ async function toggleHistory(force) {
 }
 historyBtn.onclick = () => toggleHistory();
 
+// ---------------------------------------------------------------- pins & highlights (lazy)
+// Loaded on first use, or when opening a file that has pins or highlights.
+const PIN_KEY = IS_MAC ? '⌘F2' : 'Ctrl+F2';
+let marksP = null, marksMod = null;
+function loadMarks() {
+  marksP ||= import('./marks.js').then(async (m) => {
+    await m.init({
+      LS, toast, fileKey, hasHighlights, root, content, scroller, list: $('mk-marks'),
+      keys: { pin: PIN_KEY, next: 'F2' },
+      focusContent: () => scroller.focus({ preventScroll: true }),
+    });
+    marksMod = m;
+    return m;
+  });
+  return marksP;
+}
+/** The marks module, showing the open file's pins and highlights. */
+async function marks() {
+  const had = !!marksMod;
+  const m = await loadMarks();
+  if (!had) m.docShown(current);
+  return m;
+}
+function showMarks(doc) {
+  if (marksMod) marksMod.docShown(doc);
+  else if (doc && !doc.revision && LS.get('marks.' + fileKey(doc.path), null)) marks();
+}
+
+// ---------------------------------------------------------------- reading position
+// Where each file was last read: the heading at the top of the window and how far past it, so
+// opening the file again continues there, even after edits above it. Kept for the latest files.
+const READ_MAX = 300;
+let readTimer = 0;
+function readSpot() {
+  const top = scroller.getBoundingClientRect().top;
+  let h = null;
+  for (const x of headings) { if (x.getBoundingClientRect().top <= top + 4) h = x; else break; }
+  return h ? { top: scroller.scrollTop, h: h.id, d: Math.round(top - h.getBoundingClientRect().top) } : { top: scroller.scrollTop };
+}
+function saveReading() {
+  clearTimeout(readTimer); readTimer = 0;
+  if (!current || current.revision) return;
+  const all = LS.get('read', {}), k = fileKey(current.path);
+  delete all[k];
+  if (scroller.scrollTop > 40) all[k] = { ...readSpot(), t: Date.now() };
+  const keys = Object.keys(all);
+  if (keys.length > READ_MAX) keys.sort((a, b) => all[b].t - all[a].t).slice(READ_MAX).forEach((x) => delete all[x]);
+  LS.set('read', all);
+}
+function goToSpot(s) {
+  const h = s.h && headings.find((x) => x.id === s.h);
+  if (h) scroller.scrollTop += h.getBoundingClientRect().top - scroller.getBoundingClientRect().top + s.d;
+  else scroller.scrollTop = s.top;
+}
+scroller.addEventListener('scroll', () => { clearTimeout(readTimer); readTimer = setTimeout(saveReading, 400); }, { passive: true });
+addEventListener('pagehide', saveReading);
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveReading(); });
+
 // ---------------------------------------------------------------- loading & rendering
 function showWelcome() {
+  saveReading();
   current = null;
+  marksMod?.docShown(null);
   copyBtn.disabled = true;
   closeMenus();
   content.innerHTML = '';
@@ -373,6 +436,7 @@ async function openFile(path, opts = {}) {
   if (history && current && current.path !== doc.path) { back.push({ path: current.path, top: scroller.scrollTop }); fwd.length = 0; }
   const prevTop = scroller.scrollTop;
   const samePath = current && current.path === doc.path;
+  if (!samePath) saveReading(); // the file being left, while it is still on screen
   current = doc;
   copyBtn.disabled = false;
 
@@ -394,8 +458,14 @@ async function openFile(path, opts = {}) {
   // All DOM writes (TOC included) happen before the first layout read, so the browser lays the
   // new document out once instead of twice.
   buildToc();
+  showMarks(doc);
+  // A file opened anew continues where it was last read (not when a link or Back/Forward opens it).
+  const spot = !keepScroll && !hash && opts.top === undefined && opts.resume !== false && !samePath && !doc.revision && LS.get('read', {})[fileKey(doc.path)];
+  let spotTop = -1;
   if (keepScroll || (samePath && !hash && opts.reload)) scroller.scrollTop = prevTop;
-  else if (!(hash && scrollToId(hash, false))) scroller.scrollTop = opts.top || 0;
+  else if (hash && scrollToId(hash, false)) { /* at the anchor */ }
+  else if (spot) { goToSpot(spot); spotTop = scroller.scrollTop; toast('Continuing where you left off · Home goes to the top', 2600); }
+  else scroller.scrollTop = opts.top || 0;
   updateActiveToc();
   if (findState.open && findState.query) runFind(findState.query, false);
   revealWindow();
@@ -405,6 +475,8 @@ async function openFile(path, opts = {}) {
     .finally(() => {
       if (seq !== loadSeq) return;
       if (keepScroll) scroller.scrollTop = prevTop;
+      else if (spot && scroller.scrollTop === spotTop) goToSpot(spot); // math and diagrams moved it
+      marksMod?.refresh();
       updateActiveToc();
       document.body.dataset.ready = '1';
     });
@@ -489,7 +561,7 @@ content.addEventListener('click', async (e) => {
   const [p, hash] = splitHash(href);
   const target = p ? resolvePath(current.dir, p) : current.path;
   if (!p) { scrollToId(hash); return; }
-  if (isViewable(target)) openFile(target, { hash });
+  if (isViewable(target)) openFile(target, { hash, resume: false });
   else if (UNSAFE_EXT.test(target)) toast(`Blocked: Markly won't launch programs or scripts from documents (${basename(target)})`, 4500);
   else host.openPath(target).catch((err) => toast(`Could not open ${basename(target)}: ${err}`));
 });
@@ -514,14 +586,16 @@ content.addEventListener('mouseover', (e) => {
 });
 
 // ---------------------------------------------------------------- right-click menu
-// Selected text: copy it, then search the web for it (or open it, when it is a web address).
-// A web link or a URL in code: open it or copy its address. Anywhere else there is no menu.
+// Selected text: copy it, search the web for it (or open it, when it is a web address), highlight
+// it. A web link or a URL in code: open it or copy its address. Anywhere in the file: pin the spot.
 const SEARCH_URL = 'https://www.google.com/search?q=';
 const CTX_ICONS = {
   copy: '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6.2A2.2 2.2 0 0 0 13.3 4H6.2A2.2 2.2 0 0 0 4 6.2v7.1a2.2 2.2 0 0 0 2.2 2.2h2.3"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
   open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  pin: '<path d="M9.5 3.5h5l-.8 5.6 3.3 3.4H7l3.3-3.4z"/><path d="M12 12.5V20"/>',
+  highlight: '<path d="m14.5 5 4.5 4.5-7.5 7.5H7v-4.5z"/><path d="M4 20.5h16"/>',
 };
 const shorten = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 /** The web address a selection consists of (adding https:// to "www." names), or null. */
@@ -539,7 +613,8 @@ function showCtxMenu(x, y, groups) {
   ctxMenu.innerHTML = groups.filter((g) => g.length).map((g) => g.map((it) => {
     ctxRun.push(it.run);
     return `<button class="copy-item" role="menuitem" data-i="${ctxRun.length - 1}"><svg viewBox="0 0 24 24">${CTX_ICONS[it.icon]}</svg>` +
-      `<span class="ci-text"><span class="ci-label">${esc(it.label)}</span>${it.sub ? `<span class="ci-sub">${esc(it.sub)}</span>` : ''}</span></button>`;
+      `<span class="ci-text"><span class="ci-label">${esc(it.label)}</span>${it.sub ? `<span class="ci-sub">${esc(it.sub)}</span>` : ''}</span>` +
+      `${it.key ? `<span class="ci-key">${it.key}</span>` : ''}</button>`;
   }).join('')).join('<div class="menu-sep" role="separator"></div>');
   closeMenus();
   ctxMenu.hidden = false;
@@ -563,17 +638,30 @@ document.addEventListener('contextmenu', (e) => {
   const sel = getSelection()?.toString().trim() || '';
   const link = externalUrl(e.target);
   const selUrl = selectionUrl(sel);
-  const groups = [[], []];
+  // Pins and highlights belong to the file itself, not to an earlier version from its history.
+  const inFile = current && !current.revision && e.target.closest('#mk-content') && !e.target.closest('.vw-bar');
+  const at = (inFile && marksMod?.menuState(e.clientX, e.clientY)) || {};
+  const groups = [[], [], []];
   if (sel) {
     groups[0].push({ icon: 'copy', label: 'Copy', run: () => copyText(sel, 'Copied') });
     if (selUrl) groups[0].push({ icon: 'open', label: 'Open in browser', sub: selUrl, run: () => openExternal(selUrl) });
     else groups[0].push({ icon: 'search', label: `Search Google for “${shorten(sel.replace(/\s+/g, ' '), 30)}”`, run: () => openExternal(SEARCH_URL + encodeURIComponent(sel.slice(0, 2000))) });
+    if (at.selHighlight) groups[0].push({ icon: 'highlight', label: 'Remove highlight', run: () => marksMod.removeHighlight(at.selHighlight) });
+    else if (inFile && hasHighlights && getSelection().rangeCount && at.canHighlight !== false) {
+      const range = getSelection().getRangeAt(0).cloneRange(); // clicking the menu may clear the selection
+      groups[0].push({ icon: 'highlight', label: 'Highlight', run: () => marks().then((m) => m.highlightSelection(range)) });
+    }
   }
   if (link && link !== selUrl) {
     groups[1].push({ icon: 'open', label: /^https?:/i.test(link) ? 'Open link in browser' : 'Open link', sub: link, run: () => openExternal(link) });
     groups[1].push({ icon: 'link', label: /^mailto:/i.test(link) ? 'Copy email address' : 'Copy link address', run: () => copyText(link.replace(/^mailto:/i, ''), 'Copied') });
   }
-  if (groups[0].length || groups[1].length) showCtxMenu(e.clientX, e.clientY, groups);
+  if (inFile) {
+    const target = e.target, y = e.clientY;
+    groups[2].push({ icon: 'pin', label: target.closest('.pinned') ? 'Unpin' : 'Pin this spot', key: PIN_KEY, run: () => marks().then((m) => m.togglePin(target, y)) });
+    if (!sel && at.atHighlight) groups[2].push({ icon: 'highlight', label: 'Remove highlight', run: () => marksMod.removeHighlight(at.atHighlight) });
+  }
+  if (groups.some((g) => g.length)) showCtxMenu(e.clientX, e.clientY, groups);
   else closeMenus();
 });
 window.addEventListener('blur', () => { ctxMenu.hidden = true; });
@@ -683,6 +771,7 @@ document.addEventListener('keydown', (e) => {
   else if (mod && k === 'w') host.close();
   else if (mod && k === 'r' || e.key === 'F5') { if (current) openFile(current.path, { history: false, reload: true }); }
   else if (e.key === 'F3') { if (!findState.open) openFind(); else gotoMatch(findState.idx + (e.shiftKey ? -1 : 1)); }
+  else if (e.key === 'F2') { if (current && !current.revision) marks().then((m) => (mod ? m.togglePin(null) : m.step(e.shiftKey ? -1 : 1))); }
   else if (e.altKey && e.key === 'ArrowLeft') goBack();
   else if (e.altKey && e.key === 'ArrowRight') goForward();
   else if (IS_MAC && e.metaKey && e.key === '[') goBack();
