@@ -1,7 +1,7 @@
 [package]
 name = "markly"
 version = "1.5.0"
-description = "Markly - a lightweight, beautiful Markdown viewer"
+description = "Markly - read anything, beautifully: a lightweight viewer for Markdown, text, code and data files"
 authors = ["Yosef Megrel"]
 edition = "2021"
 rust-version = "1.77"

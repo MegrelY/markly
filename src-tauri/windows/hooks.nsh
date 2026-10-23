@@ -58,7 +58,7 @@
   WriteRegStr SHCTX "Software\Classes\Applications\${MAINBINARYNAME}.exe\shell\open\command" "" '"$INSTDIR\${MAINBINARYNAME}.exe" "%1"'
   ; Default Programs capabilities
   WriteRegStr SHCTX "${MK_CAPS}" "ApplicationName" "Markly"
-  WriteRegStr SHCTX "${MK_CAPS}" "ApplicationDescription" "A lightweight, beautiful Markdown viewer"
+  WriteRegStr SHCTX "${MK_CAPS}" "ApplicationDescription" "Read anything, beautifully: Markdown, text, code and data files"
   WriteRegStr SHCTX "${MK_CAPS}" "ApplicationIcon" '"$INSTDIR\${MAINBINARYNAME}.exe",0'
   WriteRegStr SHCTX "Software\RegisteredApplications" "Markly" "${MK_CAPS}"
 
