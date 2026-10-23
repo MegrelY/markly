@@ -3,6 +3,21 @@
 ## Unreleased
 
 ### Added
+- **Pins**: right-click a paragraph, heading, list item, code line or table row and choose *Pin this
+  spot* to mark a place to come back to (Ctrl+F2 pins the top of the window; ⌘F2 on macOS). F2 and
+  Shift+F2 go to the next and previous pin, wrapping around. A pinned block gets a bar in the margin.
+- **Highlights**: select text, right-click and choose *Highlight* (green, so find's yellow matches
+  stay visible on it). Highlighting across an existing highlight joins the two; right-click a
+  highlight to remove it.
+- Pins and highlights are listed in the sidebar under the contents, where a click goes to one and
+  × removes it. The sidebar also opens for them in text, code and data files. They are kept by
+  Markly per file (the file is never changed) and follow their text when the file is edited:
+  a pin by the start of its paragraph (else its section), a highlight by its text and the words
+  around it. Not shown on earlier versions from the file history.
+- **Continue where you left off**: reopening a file (recent files, folder browser, command line,
+  drag and drop) returns to the place you were reading, by the section on screen, so edits above it
+  don't move it. Following a link still opens at the top or the anchor, and Back / Forward return
+  to where you were in the page as before.
 - **URLs in code and plain text open with Ctrl+click** (⌘-click on macOS) in your default browser:
   in Markdown code blocks and inline code, and in text, code, JSON, CSV and HTML source views. A
   plain click still selects text. Hovering a URL shows a hint, and holding Ctrl shows it as a link.

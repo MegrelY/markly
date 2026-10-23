@@ -547,6 +547,83 @@ fs.rmSync(TMP, { recursive: true, force: true });
   check('html source: URLs in attributes open on Ctrl+click', (await opened())[0] === 'https://example.com');
 }
 
+// ---------------------------------------------------------------- pins, highlights, reading position
+{
+  const F = '/tests/files/';
+  const file = path.join(ROOT, 'tests/files/marks.md');
+  const filler = (w) => `${w} paragraph that makes the page long enough to scroll.\n\n`.repeat(30);
+  const write = (intro, setup) => fs.writeFileSync(file, `# Notes\n\n${intro}## Setup\n\nInstall the tools first.\n\n${setup}\n\n${filler('Filler')}## Usage\n\nRun it with the default profile and watch the log.\n\n${filler('More')}`);
+  write('', 'The server reads its settings from config.toml at startup.');
+  const open = async (f) => {
+    await p.evaluate((x) => window.__marklyOpen(x), F + f);
+    await p.waitForFunction((f) => document.title.startsWith(f) && document.body.dataset.ready === '1', { timeout: 8000 }, f); await sleep(200);
+  };
+  const rightClick = (sel, text) => p.evaluate((sel, text) => {
+    const el = [...document.querySelectorAll(sel)].find((e) => !text || e.textContent.includes(text));
+    getSelection().removeAllRanges();
+    if (text) { const n = el.firstChild, i = n.nodeValue.indexOf(text); const r = new Range(); r.setStart(n, i); r.setEnd(n, i + text.length); getSelection().addRange(r); }
+    const b = el.getBoundingClientRect();
+    el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4 }));
+    return [...document.querySelectorAll('#ctx-menu:not([hidden]) .ci-label')].map((e) => e.textContent);
+  }, sel, text);
+  const pick = async (label) => { await p.evaluate((l) => [...document.querySelectorAll('#ctx-menu button')].find((b) => b.querySelector('.ci-label').textContent === l).click(), label); await sleep(400); };
+  const state = () => p.evaluate(() => ({
+    pinned: [...document.querySelectorAll('#mk-content .pinned')].map((e) => e.textContent),
+    hl: [...(CSS.highlights.get('mk-hl') || [])].map((r) => [r.toString(), r.startContainer.parentElement.closest('p')?.textContent.slice(0, 6)]),
+    list: [...document.querySelectorAll('#mk-marks .toc-head, #mk-marks .mk-go')].map((e) => e.textContent).join(' | '),
+  }));
+  const pinTop = () => p.evaluate(() => document.querySelector('#mk-content .pinned').getBoundingClientRect().top - document.getElementById('mk-scroller').getBoundingClientRect().top);
+  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/^markly\.(marks\.|read$)/.test(k)) localStorage.removeItem(k); });
+  await open('marks.md');
+  check('pins & highlights code not loaded until used', await p.evaluate(() => !document.querySelector('link[href="marks.css"]') && !performance.getEntriesByType('resource').some((r) => /\/chunks\/marks-/.test(r.name))));
+  check('right-click a paragraph: pin this spot', JSON.stringify(await rightClick('#mk-content p', 'The server')) === JSON.stringify(['Copy', 'Search Google for “The server”', 'Highlight', 'Pin this spot']));
+  await p.evaluate(() => getSelection().removeAllRanges());
+  check('right-click without a selection: only pin', JSON.stringify(await rightClick('#mk-content p:nth-of-type(2)')) === JSON.stringify(['Pin this spot']));
+  await pick('Pin this spot');
+  let s = await state();
+  check('pin marks the paragraph and lists it in the sidebar', s.pinned[0] === 'The server reads its settings from config.toml at startup.' && s.list === 'Pinned | The server reads its settings from config.toml at startup.', s.list);
+  await rightClick('#mk-content p', 'default profile'); await pick('Highlight');
+  s = await state();
+  check('highlight the selected text', JSON.stringify(s.hl) === JSON.stringify([['default profile', 'Run it']]) && s.list.endsWith('Highlights | “default profile”'), JSON.stringify(s.hl));
+  const atHl = await p.evaluate(() => {
+    const r = CSS.highlights.get('mk-hl').values().next().value, b = r.getBoundingClientRect();
+    getSelection().removeAllRanges();
+    r.startContainer.parentElement.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 3, clientY: b.top + b.height / 2 }));
+    return [...document.querySelectorAll('#ctx-menu .ci-label')].map((e) => e.textContent);
+  });
+  check('right-click highlighted text: remove highlight', atHl.includes('Remove highlight'), atHl.join('|'));
+  await p.keyboard.press('Escape');
+  await p.$eval('#mk-scroller', (e) => { e.scrollTop = e.scrollHeight; }); await sleep(900);
+  await p.keyboard.press('F2'); await sleep(900);
+  check('F2 goes to the pin (wrapping around)', await p.evaluate((t) => t >= 0 && t < document.getElementById('mk-scroller').clientHeight / 2, await pinTop()), String(await pinTop()));
+
+  // reading position: reopening continues at the same place relative to the heading on screen
+  await p.$eval('#mk-scroller', (e) => { e.scrollTop += document.getElementById('usage').getBoundingClientRect().top - e.getBoundingClientRect().top + 40; }); await sleep(700);
+  await open('README'); await open('marks.md');
+  const usageAt = () => p.evaluate(() => Math.round(document.getElementById('mk-scroller').getBoundingClientRect().top - document.getElementById('usage').getBoundingClientRect().top));
+  check('reopening continues where you left off', Math.abs((await usageAt()) - 40) <= 2 && /Continuing where you left off/.test(await p.$eval('#mk-toast', (e) => e.textContent)), String(await usageAt()));
+  await p.evaluate((x) => window.__marklyOpen(x, { resume: false }), F + 'README'); await sleep(300);
+  await p.evaluate((x) => window.__marklyOpen(x, { resume: false }), F + 'marks.md'); await sleep(400);
+  check('a link to the file opens it at the top', (await p.$eval('#mk-scroller', (e) => e.scrollTop)) === 0);
+  await p.$eval('#mk-scroller', (e) => { e.scrollTop += document.getElementById('usage').getBoundingClientRect().top - e.getBoundingClientRect().top + 40; }); await sleep(700);
+
+  // edits: new text above, the pinned paragraph extended, the highlighted words also mentioned earlier
+  write('A new intro. The default profile is described below.\n\n', 'The server reads its settings from config.toml at startup (and on SIGHUP).');
+  await open('README'); await open('marks.md');
+  s = await state();
+  check('pin and highlight survive edits above and around them', s.pinned[0]?.endsWith('(and on SIGHUP).') && JSON.stringify(s.hl) === JSON.stringify([['default profile', 'Run it']]), JSON.stringify(s));
+  check('the section stays where you left off after the edit', Math.abs((await usageAt()) - 40) <= 2, String(await usageAt()));
+
+  // Ctrl+F2 pins the spot at the top of the window; the sidebar's x removes a pin
+  await p.$eval('#mk-scroller', (e) => { e.scrollTop = 0; }); await sleep(200);
+  await p.keyboard.down('Control'); await p.keyboard.press('F2'); await p.keyboard.up('Control'); await sleep(300);
+  check('Ctrl+F2 pins the top of the window', (await state()).pinned.length === 2);
+  await p.click('#mk-marks [data-x="p0"]'); await sleep(200);
+  check('sidebar x unpins', (await state()).pinned.length === 1);
+  await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/^markly\.(marks\.|read$)/.test(k)) localStorage.removeItem(k); });
+  fs.rmSync(file);
+}
+
 // sanitizer
 await p.evaluate(() => window.__marklyOpen('/tests/xss-test.md'));
 await new Promise((r) => setTimeout(r, 500));

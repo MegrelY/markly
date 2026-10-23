@@ -60,6 +60,13 @@ From the [latest release](../../releases/latest):
   selects text.
 - Right-click selected text to copy it or search Google for it (or open it, when it is a web address); right-click a link
   to open it or copy its address.
+- Pins and highlights, to find your way back in long files:
+  - Right-click a paragraph, heading, list item or code line and choose *Pin this spot* (Ctrl+F2 pins the top of the
+    window). F2 / Shift+F2 go to the next / previous pin.
+  - Select text, right-click and choose *Highlight*. Right-click it again to remove it.
+  - Both are listed in the sidebar under the contents (it opens for them in files without headings too). They follow
+    their text when the file is edited, and are kept by Markly per file: the file itself is never changed.
+- Reopening a file continues where you left off (a link to it still opens at the top).
 - Reloads automatically when the file changes on disk and keeps your scroll position
 - Remembers window size, position, theme, zoom and sidebar state
 - Strips scripts and unsafe HTML from documents, and never launches executables from links
@@ -109,6 +116,8 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 | Reload | F5 |
 | Back / forward (between linked docs) | Alt+← / Alt+→ or mouse back/forward buttons |
 | Open a URL in code or plain text in the browser | Ctrl+click |
+| Pin / unpin the spot at the top of the window | Ctrl+F2 |
+| Next / previous pin | F2 / Shift+F2 |
 | Close window | Ctrl+W |
 
 ## Install
@@ -267,6 +276,7 @@ src/            frontend (vanilla JS + CSS, bundled by esbuild)
   math.js       $/$$ math plugin, lazy KaTeX
   files.js      folder browser panel (lazy-loaded with files.css)
   history.js    file history view; diff.js parses and renders diffs (lazy-loaded with history.css)
+  marks.js      pins and highlights (lazy-loaded with marks.css)
   host.js       Tauri bridge (or plain-browser fallback for previews)
 src-tauri/      Rust shell: file reading, file watching, CLI args, window state
   src/git.rs    read-only git commands for the file history (runs the git CLI)

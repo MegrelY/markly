@@ -1,0 +1,48 @@
+/* Pins and highlights (loaded with marks.js, not at start-up). */
+
+/* The sidebar also opens for pins and highlights in files without headings (text, code, data). */
+html.has-marks:not(.toc-hidden):not(.no-doc) #mk-toc { display: block; }
+html.has-marks:not(.toc-hidden):not(.no-doc) #btn-toc { background: var(--accent-soft); color: var(--accent); }
+html.toc-empty #mk-toc > .toc-head, html.toc-empty #toc-list { display: none; }
+#mk-marks .toc-head { margin-top: 18px; }
+html.toc-empty #mk-marks > .toc-head:first-child { margin-top: 0; }
+
+.mk-row { display: flex; align-items: center; border-radius: 6px; }
+.mk-row:hover { background: var(--surface-2); }
+.mk-go {
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 7px; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font: inherit; font-size: 13px; line-height: 1.4; text-align: start; padding: 4.5px 4px 4.5px 10px;
+}
+.mk-go span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-row:hover .mk-go { color: var(--text-strong); }
+.mk-go svg, .mk-x svg { flex: 0 0 auto; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mk-go svg { color: var(--accent); }
+.mk-x { flex: 0 0 auto; display: grid; place-items: center; width: 24px; height: 24px; margin-inline-end: 2px; border: 0; border-radius: 5px; background: none; color: var(--faint); cursor: pointer; opacity: 0; }
+.mk-row:hover .mk-x, .mk-x:focus-visible { opacity: 1; }
+.mk-x:hover { color: var(--text-strong); background: var(--border-soft); }
+.mk-go:focus-visible, .mk-x:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+
+/* A pinned block: a bar in the margin; boxes that clip their overflow get an inner edge instead. */
+.markdown-body .pinned { position: relative; }
+.markdown-body .pinned::before {
+  content: ''; position: absolute; inset-inline-start: calc(-22px * var(--zoom)); top: .2em; bottom: .2em;
+  width: 3px; border-radius: 2px; background: var(--accent);
+}
+.markdown-body li.pinned::before { inset-inline-start: calc(-1.9em - 6px * var(--zoom)); } /* clear of the list marker */
+.markdown-body :is(.code-block, .table-wrap, .mermaid-block).pinned { box-shadow: inset 3px 0 0 var(--accent); }
+.markdown-body :is(.code-block, .table-wrap, .mermaid-block, .vl, tr).pinned::before { content: none; }
+.vl.pinned { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.vw-table tr.pinned > td { background: var(--accent-soft); }
+@keyframes mk-flash { from { background-color: color-mix(in srgb, var(--accent) 22%, transparent); } }
+.mk-flash { animation: mk-flash 1.4s ease-out; }
+
+/* Highlights are green, so find's yellow matches stay visible on them. */
+::highlight(mk-hl) { background-color: rgba(52, 211, 153, 0.32); }
+::highlight(mk-hl-now) { background-color: rgba(16, 185, 129, 0.6); }
+[data-theme='dark'] ::highlight(mk-hl) { background-color: rgba(52, 211, 153, 0.24); }
+[data-theme='dark'] ::highlight(mk-hl-now) { background-color: rgba(52, 211, 153, 0.5); }
+
+@media print {
+  .markdown-body .pinned::before { content: none; }
+  .markdown-body .pinned, .vl.pinned { box-shadow: none; background: none; }
+}
