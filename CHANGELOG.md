@@ -28,6 +28,11 @@
   for links with their own title (shown first, the address below) and for links to other files.
 - **Middle-click** opens a web link, or a URL in code, in your default browser.
 
+### Changed
+- **New tagline: *Read anything, beautifully.*** Markly opens more than Markdown now, so the welcome
+  screen (*Open a file…*), the sample banner, the README and the app's descriptions in the
+  installers, Windows *Open with* and the Linux app menu say so.
+
 ### Fixed
 - **Web links open in your default browser.** Clicking an `https://`, `http://`, `mailto:` or
   `tel:` link showed "Not allowed to open url …": the window was allowed to open URLs, but no

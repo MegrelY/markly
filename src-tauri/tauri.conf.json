@@ -36,8 +36,8 @@
     "publisher": "Markly",
     "copyright": "© 2026 Yosef Megrel",
     "category": "Productivity",
-    "shortDescription": "A lightweight, beautiful Markdown viewer",
-    "longDescription": "Markly opens .md files instantly and renders them beautifully: GitHub-flavored Markdown, tables, code highlighting, math and diagrams, fully offline.",
+    "shortDescription": "Read anything, beautifully: Markdown, text, code and data files",
+    "longDescription": "Markly opens Markdown, plain text, code, config and data files instantly and shows them beautifully: GitHub-flavored Markdown with tables, math and diagrams, highlighted and formatted code and JSON, CSV as a table. Read-only and fully offline.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

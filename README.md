@@ -1,10 +1,10 @@
 # Markly
 
-A lightweight, beautiful Markdown viewer for Windows, Linux and macOS. It also opens plain text, code,
-config and data files (highlighted, formatted, CSV as a table). Markly is a small native shell
-built with [Tauri 2](https://tauri.app) on top of the system web view (WebView2 on Windows, WebKitGTK on
-Linux, WKWebView on macOS), so the app itself is only a few MB. It reads files and never edits them, and
-it sends no telemetry.
+**Read anything, beautifully.** Markly is a lightweight viewer for Windows, Linux and macOS: Markdown
+fully rendered, plus plain text, code, config and data files (highlighted, formatted, CSV as a table).
+It is a small native shell built with [Tauri 2](https://tauri.app) on top of the system web view
+(WebView2 on Windows, WebKitGTK on Linux, WKWebView on macOS), so the app itself is only a few MB. It
+reads files and never edits them, and it sends no telemetry.
 
 ![Markly in light mode](docs/screenshot-light.png)
 ![Markly in dark mode](docs/screenshot-dark.png)
