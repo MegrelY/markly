@@ -141,7 +141,7 @@ function tableHtml(v) {
   }).join('');
   const tr = body.map(({ r, i }) => `<tr><td class="vw-rn">${i + 1}</td>${Array.from({ length: cols }, (_, c) => {
     const x = r[c] ?? '';
-    return `<td${NUM.test(x) && x.trim() ? ' class="num"' : ''}>${esc(x)}</td>`;
+    return `<td${NUM.test(x) && x.trim() ? ' class="num"' : ''}>${ctx.linkifyUrls(esc(x))}</td>`;
   }).join('')}</tr>`).join('');
   const more = total > MAX_ROWS ? `<p class="vw-more">Showing the first ${MAX_ROWS.toLocaleString()} of ${total.toLocaleString()} rows. Switch to Raw to see everything.</p>` : '';
   return `<div class="table-wrap vw-table-wrap"><table class="vw-table"><thead><tr><th class="vw-rn" aria-label="Row"></th>${th}</tr></thead><tbody>${tr}</tbody></table></div>${more}`;
@@ -182,7 +182,7 @@ async function body(v) {
     else if (r.error) v.note = r.error;
   }
   const lang = big ? null : type.lang || (type.kind === 'csv' ? null : null);
-  const html = lang ? await ctx.highlightCode(text, lang) : esc(text);
+  const html = ctx.linkifyUrls(lang ? await ctx.highlightCode(text, lang) : esc(text));
   const prose = type.kind === 'text' && !type.mono && !pref('textMono', false);
   return linesHtml(html, {
     plain: big || countLines(text) > MAX_LINE_NUMBERS,

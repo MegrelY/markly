@@ -1,5 +1,5 @@
 import { host } from './host.js';
-import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview } from './render.js';
+import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls } from './render.js';
 import { resolvePath, splitHash, basename, dirname } from './path.js';
 import { fileType, isMarkdownPath, isViewable } from './filetypes.js';
 
@@ -9,6 +9,7 @@ const content = $('mk-content');
 const scroller = $('mk-scroller');
 const welcome = $('mk-welcome');
 const tocList = $('toc-list');
+const ctxMenu = $('ctx-menu');
 
 const LS = {
   get: (k, d) => { try { const v = localStorage.getItem('markly.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
@@ -181,6 +182,7 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.menu-wrap')) closeMenus();
 });
 function closeMenus() {
+  ctxMenu.hidden = true;
   $('recent-menu').hidden = true;
   copyMenu.hidden = true;
   copyBtn.setAttribute('aria-expanded', 'false');
@@ -251,7 +253,7 @@ let viewerP = null, viewerMod = null;
 function loadViewer() {
   viewerP ||= import('./viewer.js').then(async (m) => {
     await m.init({
-      LS, highlightCode, sanitizePreview, assetUrl: host.assetUrl,
+      LS, highlightCode, sanitizePreview, linkifyUrls, assetUrl: host.assetUrl,
       changed: () => { if (findState.open && findState.query) runFind(findState.query, false); },
     });
     viewerMod = m;
@@ -413,9 +415,12 @@ async function openFile(path, opts = {}) {
 function postProcess() {
   content.querySelectorAll('p,li,ul,ol,h1,h2,h3,h4,h5,h6,blockquote,td,th,table,dt,dd,summary,figcaption')
     .forEach((el) => { if (!el.hasAttribute('dir')) el.setAttribute('dir', 'auto'); });
+  // The tooltip always shows where a link really goes (its text can say anything), after the
+  // author's own title when there is one.
   content.querySelectorAll('a[href]').forEach((a) => {
     const h = a.getAttribute('href');
-    if (/^(https?:|mailto:|tel:)/i.test(h)) { a.classList.add('external'); a.title ||= h; }
+    if (EXTERNAL.test(h)) a.classList.add('external');
+    if (!h.startsWith('#')) a.title = a.title && a.title !== h ? `${a.title}\n${h}` : h;
   });
   content.querySelectorAll('img').forEach((img) => {
     img.addEventListener('error', async () => {
@@ -445,6 +450,15 @@ function goForward() {
 }
 
 // ---------------------------------------------------------------- links & copy
+/** Opens a web, mail or phone link with the system's default app (browser, mail client, …). */
+const openExternal = (url) => host.openExternal(url).catch((err) => toast(String(err?.message || err)));
+const EXTERNAL = /^(https?:|mailto:|tel:)/i;
+/** The web, mail or phone address of the document link or bare URL at `el`, or null. */
+function externalUrl(el) {
+  const a = el.closest('#mk-content a[href]');
+  if (a) return EXTERNAL.test(a.getAttribute('href')) ? a.getAttribute('href') : null;
+  return el.closest('#mk-content .bare-url')?.dataset.url || null;
+}
 content.addEventListener('click', async (e) => {
   if (viewerMod && e.target.closest('.vw-bar button, .vw-sort')) { viewerMod.click(e, content); return; }
   const copy = e.target.closest('.code-copy');
@@ -461,11 +475,16 @@ content.addEventListener('click', async (e) => {
     return;
   }
   const a = e.target.closest('a[href]');
-  if (!a) return;
+  if (!a) {
+    // URLs in code and plain text open with Ctrl+click (⌘ on macOS): a plain click still selects text.
+    const u = e.target.closest('.bare-url');
+    if (u && (e.ctrlKey || e.metaKey)) openExternal(u.dataset.url);
+    return;
+  }
   e.preventDefault();
   const href = a.getAttribute('href');
   if (href.startsWith('#')) { scrollToId(decodeURIComponent(href.slice(1))); return; }
-  if (/^(https?:|mailto:|tel:)/i.test(href)) { host.openExternal(href).catch((err) => toast(String(err))); return; }
+  if (EXTERNAL.test(href)) { openExternal(href); return; }
   if (!current) return;
   const [p, hash] = splitHash(href);
   const target = p ? resolvePath(current.dir, p) : current.path;
@@ -474,13 +493,92 @@ content.addEventListener('click', async (e) => {
   else if (UNSAFE_EXT.test(target)) toast(`Blocked: Markly won't launch programs or scripts from documents (${basename(target)})`, 4500);
   else host.openPath(target).catch((err) => toast(`Could not open ${basename(target)}: ${err}`));
 });
-document.addEventListener('auxclick', (e) => { if (e.target.closest('a')) e.preventDefault(); });
+// Middle-click opens web links and bare URLs in the browser (never a new Markly window).
+content.addEventListener('mousedown', (e) => { if (e.button === 1 && e.target.closest('a[href], .bare-url')) e.preventDefault(); }); // no autoscroll
+document.addEventListener('auxclick', (e) => {
+  if (!e.target.closest('a, .bare-url')) return;
+  e.preventDefault();
+  const url = e.button === 1 && externalUrl(e.target);
+  if (url) openExternal(url);
+});
+// Holding Ctrl (⌘) shows bare URLs as links; the hint is added on first hover, not to every span.
+const modHeld = (e) => root.classList.toggle('mod-held', e.ctrlKey || e.metaKey);
+document.addEventListener('keydown', modHeld);
+document.addEventListener('keyup', modHeld);
+window.addEventListener('blur', () => root.classList.remove('mod-held'));
+content.addEventListener('mouseover', (e) => {
+  const u = !e.target.closest('a[href]') && e.target.closest('.bare-url');
+  if (!u) return;
+  modHeld(e);
+  u.title ||= `${IS_MAC ? '⌘-click' : 'Ctrl+click'} to open in your browser`;
+});
+
+// ---------------------------------------------------------------- right-click menu
+// Selected text: copy it, then search the web for it (or open it, when it is a web address).
+// A web link or a URL in code: open it or copy its address. Anywhere else there is no menu.
+const SEARCH_URL = 'https://www.google.com/search?q=';
+const CTX_ICONS = {
+  copy: '<rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.2"/><path d="M15.5 8.5V6.2A2.2 2.2 0 0 0 13.3 4H6.2A2.2 2.2 0 0 0 4 6.2v7.1a2.2 2.2 0 0 0 2.2 2.2h2.3"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  open: '<path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v4.5a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18.5v-11A1.5 1.5 0 0 1 5.5 6H10"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+};
+const shorten = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+/** The web address a selection consists of (adding https:// to "www." names), or null. */
+function selectionUrl(text) {
+  if (!/^(https?:\/\/|www\.)\S+$/i.test(text)) return null;
+  const url = /^www\./i.test(text) ? 'https://' + text : text;
+  return url.replace(/[.,;:!?]+$/, '');
+}
+async function copyText(text, done) {
+  toast((await writeClipboard(text)) ? done : "Couldn't copy to the clipboard", 1600);
+}
+let ctxRun = [];
+function showCtxMenu(x, y, groups) {
+  ctxRun = [];
+  ctxMenu.innerHTML = groups.filter((g) => g.length).map((g) => g.map((it) => {
+    ctxRun.push(it.run);
+    return `<button class="copy-item" role="menuitem" data-i="${ctxRun.length - 1}"><svg viewBox="0 0 24 24">${CTX_ICONS[it.icon]}</svg>` +
+      `<span class="ci-text"><span class="ci-label">${esc(it.label)}</span>${it.sub ? `<span class="ci-sub">${esc(it.sub)}</span>` : ''}</span></button>`;
+  }).join('')).join('<div class="menu-sep" role="separator"></div>');
+  closeMenus();
+  ctxMenu.hidden = false;
+  const r = ctxMenu.getBoundingClientRect();
+  ctxMenu.style.left = `${Math.max(4, Math.min(x, innerWidth - r.width - 4))}px`;
+  ctxMenu.style.top = `${Math.max(4, y + r.height > innerHeight - 4 ? y - r.height : y)}px`;
+  ctxMenu.querySelector('button').focus({ preventScroll: true });
+}
+ctxMenu.addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-i]');
+  if (!b) return;
+  e.stopPropagation();
+  const run = ctxRun[+b.dataset.i];
+  closeMenus();
+  run();
+});
 document.addEventListener('contextmenu', (e) => {
-  const sel = getSelection();
-  if (sel && !sel.isCollapsed) return;
   if (e.target.closest('input')) return;
   e.preventDefault();
+  if (e.target.closest('#ctx-menu')) return;
+  const sel = getSelection()?.toString().trim() || '';
+  const link = externalUrl(e.target);
+  const selUrl = selectionUrl(sel);
+  const groups = [[], []];
+  if (sel) {
+    groups[0].push({ icon: 'copy', label: 'Copy', run: () => copyText(sel, 'Copied') });
+    if (selUrl) groups[0].push({ icon: 'open', label: 'Open in browser', sub: selUrl, run: () => openExternal(selUrl) });
+    else groups[0].push({ icon: 'search', label: `Search Google for “${shorten(sel.replace(/\s+/g, ' '), 30)}”`, run: () => openExternal(SEARCH_URL + encodeURIComponent(sel.slice(0, 2000))) });
+  }
+  if (link && link !== selUrl) {
+    groups[1].push({ icon: 'open', label: /^https?:/i.test(link) ? 'Open link in browser' : 'Open link', sub: link, run: () => openExternal(link) });
+    groups[1].push({ icon: 'link', label: /^mailto:/i.test(link) ? 'Copy email address' : 'Copy link address', run: () => copyText(link.replace(/^mailto:/i, ''), 'Copied') });
+  }
+  if (groups[0].length || groups[1].length) showCtxMenu(e.clientX, e.clientY, groups);
+  else closeMenus();
 });
+window.addEventListener('blur', () => { ctxMenu.hidden = true; });
+window.addEventListener('resize', () => { ctxMenu.hidden = true; });
+scroller.addEventListener('scroll', () => { ctxMenu.hidden = true; }, { passive: true });
 
 // ---------------------------------------------------------------- find (Ctrl+F)
 const findState = { open: false, query: '', ranges: [], idx: -1 };
@@ -591,7 +689,7 @@ document.addEventListener('keydown', (e) => {
   else if (IS_MAC && e.metaKey && e.key === ']') goForward();
   else if (e.key === 'BrowserBack') goBack();
   else if (e.key === 'BrowserForward') goForward();
-  else if (e.key === 'Escape') { if (findState.open) closeFind(); else if (current?.revision && $('copy-menu').hidden && $('recent-menu').hidden) openFile(current.path, { history: false }); else closeMenus(); }
+  else if (e.key === 'Escape') { if (!ctxMenu.hidden) closeMenus(); else if (findState.open) closeFind(); else if (current?.revision && $('copy-menu').hidden && $('recent-menu').hidden) openFile(current.path, { history: false }); else closeMenus(); }
   else handled = false;
   if (handled) e.preventDefault();
 });

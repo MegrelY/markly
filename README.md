@@ -55,7 +55,11 @@ From the [latest release](../../releases/latest):
   Markdown source exactly as it is on disk, not the rendered page. Ctrl+Shift+C copies the path.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
 - Relative images and links resolve from the document's folder. Links to `.md` files (and to text, code and data files) open in Markly
-  (Alt+← goes back), and web links open in your default browser.
+  (Alt+← goes back), and web links open in your default browser (also with middle-click); hovering a link shows its
+  real address. URLs in code blocks and in text, code and data files open with Ctrl+click, so a plain click still
+  selects text.
+- Right-click selected text to copy it or search Google for it (or open it, when it is a web address); right-click a link
+  to open it or copy its address.
 - Reloads automatically when the file changes on disk and keeps your scroll position
 - Remembers window size, position, theme, zoom and sidebar state
 - Strips scripts and unsafe HTML from documents, and never launches executables from links
@@ -104,6 +108,7 @@ On macOS use ⌘ wherever the table says Ctrl. ⌘[ / ⌘] also go back and forw
 | Toggle theme | Ctrl+Shift+L |
 | Reload | F5 |
 | Back / forward (between linked docs) | Alt+← / Alt+→ or mouse back/forward buttons |
+| Open a URL in code or plain text in the browser | Ctrl+click |
 | Close window | Ctrl+W |
 
 ## Install

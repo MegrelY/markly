@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **URLs in code and plain text open with Ctrl+click** (⌘-click on macOS) in your default browser:
+  in Markdown code blocks and inline code, and in text, code, JSON, CSV and HTML source views. A
+  plain click still selects text. Hovering a URL shows a hint, and holding Ctrl shows it as a link.
+- **Right-click menu.** On selected text: *Copy* and *Search Google for “…”*, or *Open in browser*
+  when the selection is a web address. On a web link or a URL in code: *Open link in browser* and
+  *Copy link address* (*Copy email address* for `mailto:` links). Esc or a click elsewhere closes it.
+- **Link tooltips always show the address**, so a link's text can't hide where it goes: now also
+  for links with their own title (shown first, the address below) and for links to other files.
+- **Middle-click** opens a web link, or a URL in code, in your default browser.
+
+### Fixed
+- **Web links open in your default browser.** Clicking an `https://`, `http://`, `mailto:` or
+  `tel:` link showed "Not allowed to open url …": the window was allowed to open URLs, but no
+  address was in scope.
+
 ## 1.5.0 — 2026-10-23
 
 ### Added
