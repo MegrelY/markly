@@ -19,11 +19,11 @@ From the [latest release](../../releases/latest):
 
 | Platform | File |
 |---|---|
-| Windows 10/11 x64 | `Markly_1.5.0_x64-setup.exe` (installer) or `Markly_1.5.0_x64_portable.exe` |
-| Debian / Ubuntu x64 | `Markly_1.5.0_amd64.deb` |
-| Fedora / openSUSE x64 | `Markly-1.5.0-1.x86_64.rpm` |
-| Any Linux x64 | `Markly_1.5.0_amd64.AppImage` |
-| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.5.0_universal.dmg` (unsigned) |
+| Windows 10/11 x64 | `Markly_1.6.0_x64-setup.exe` (installer) or `Markly_1.6.0_x64_portable.exe` |
+| Debian / Ubuntu x64 | `Markly_1.6.0_amd64.deb` |
+| Fedora / openSUSE x64 | `Markly-1.6.0-1.x86_64.rpm` |
+| Any Linux x64 | `Markly_1.6.0_amd64.AppImage` |
+| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.6.0_universal.dmg` (unsigned) |
 
 ## Features
 
@@ -133,13 +133,13 @@ Ctrl (⌘[ and ⌘] also go back and forward).
 
 ### Windows
 
-Run `Markly_1.5.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
+Run `Markly_1.6.0_x64-setup.exe`. It installs for the current user only, so no admin prompt.
 The installer registers Markly as an **Open with** handler for `.md`, `.markdown`, `.mdown` and `.mkd`. It does
 not take over an existing default app. To make Markly the default, right-click a `.md` file and choose
 *Open with → Choose another app → Markly → Always*, or use *Settings → Apps → Default apps → Markly*.
 If no app was registered for `.md` before, Markly becomes the handler.
 
-There is also a portable option: `Markly_1.5.0_x64_portable.exe` runs without installing, but it
+There is also a portable option: `Markly_1.6.0_x64_portable.exe` runs without installing, but it
 does not register file associations.
 
 The binaries are not code-signed, so Windows SmartScreen may warn you the first time.
@@ -147,9 +147,9 @@ Click **More info → Run anyway**.
 
 ### Linux
 
-- Debian/Ubuntu: `sudo apt install ./Markly_1.5.0_amd64.deb`
-- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.5.0-1.x86_64.rpm` (or `zypper install`)
-- AppImage: `chmod +x Markly_1.5.0_amd64.AppImage && ./Markly_1.5.0_amd64.AppImage file.md`.
+- Debian/Ubuntu: `sudo apt install ./Markly_1.6.0_amd64.deb`
+- Fedora/RHEL/openSUSE: `sudo dnf install ./Markly-1.6.0-1.x86_64.rpm` (or `zypper install`)
+- AppImage: `chmod +x Markly_1.6.0_amd64.AppImage && ./Markly_1.6.0_amd64.AppImage file.md`.
   It is large (~105 MB) because it bundles WebKitGTK. Prefer the deb/rpm where possible.
 
 The deb and rpm install `markly` to `/usr/bin` and a desktop entry for `text/markdown`, so Markly shows
@@ -264,9 +264,9 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appi
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin && cargo tauri build --target universal-apple-darwin`.
 
 **CI / releases:** `.github/workflows/ci.yml` builds every push and pull request on all three
-platforms. Pushing a tag such as `v1.5.0` runs `.github/workflows/release.yml`, which creates a GitHub
+platforms. Pushing a tag such as `v1.6.0` runs `.github/workflows/release.yml`, which creates a GitHub
 release with the Windows installer and portable exe, the Linux deb/rpm/AppImage and the macOS dmg.
-To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.5.0`. It reuses
+To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.6.0`. It reuses
 that tag's release, whether it is a draft or published, and replaces assets that have the same names.
 
 Frontend only: `npm run build` (writes `dist-web/`). Then:
@@ -302,6 +302,16 @@ tools/          screenshot, interaction test and benchmark scripts
 ## Version history
 
 All releases so far, newest first. See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+### 1.6.0 — 2026-10-24
+- **Web links open in your default browser** (they showed "Not allowed to open url"). Middle-click
+  opens them too, URLs in code and plain text open with Ctrl+click, and a link's tooltip always shows
+  its real address.
+- **Right-click menu**: copy selected text or search Google for it, open or copy a link.
+- **Pins and highlights**: pin spots to come back to (F2 / Shift+F2 jump between them) and highlight
+  text. Both are listed in the sidebar and follow their text when the file is edited.
+- **Continue where you left off**: reopening a file returns to the place you were reading.
+- New tagline, *Read anything, beautifully.* The Open dialog now lists every type Markly opens.
 
 ### 1.5.0 — 2026-10-23
 - **New look**: a teal accent replaces the purple, with a new bookmark icon. Secondary text is easier

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.0 — 2026-10-24
 
 ### Added
 - **Pins**: right-click a paragraph, heading, list item, code line or table row and choose *Pin this
