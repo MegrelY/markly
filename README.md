@@ -23,7 +23,7 @@ From the [latest release](../../releases/latest):
 | Debian / Ubuntu x64 | `Markly_1.6.0_amd64.deb` |
 | Fedora / openSUSE x64 | `Markly-1.6.0-1.x86_64.rpm` |
 | Any Linux x64 | `Markly_1.6.0_amd64.AppImage` |
-| macOS 10.15+ (Intel and Apple silicon) | `Markly_1.6.0_universal.dmg` (unsigned) |
+| macOS 10.15+ with Safari 15.4+ (Intel and Apple silicon) | `Markly_1.6.0_universal.dmg` (unsigned) |
 
 ## Features
 
@@ -175,6 +175,9 @@ xattr -dr com.apple.quarantine /Applications/Markly.app
 Markly is registered as a viewer for `.md`, `.markdown`, `.mdown` and `.mkd`, as an alternate handler.
 It appears under *Open With* without becoming the default. To make it the default, use
 *Get Info → Open with → Markly → Change All…*.
+
+Markly uses the WebKit built into macOS, so there is nothing else to install. It needs Safari 15.4 or
+later: macOS 12.3 and newer include it, and on macOS 10.15 or 11 update Safari in *Software Update*.
 
 ## Performance
 
