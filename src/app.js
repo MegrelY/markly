@@ -103,13 +103,18 @@ function stepZoom(dir) {
 
 // ---------------------------------------------------------------- page width
 // Normal keeps the readable text column, Wide tables lets tables grow past it, Wide page widens the
-// column itself (style.css). Wide tables needs the scroll area's width, which CSS can't see there.
+// column itself (style.css). Wide tables needs the scroll area's width, which CSS can't see there,
+// so only that mode tracks it (a change restyles the whole page).
 const WIDTH_NAMES = { normal: 'Normal', tables: 'Wide tables', page: 'Wide page' };
 const WIDTHS = Object.keys(WIDTH_NAMES);
 const WIDTH_KEY = IS_MAC ? '⇧⌘X' : 'Ctrl+Shift+X';
 let widthPref = WIDTHS.includes(localStorage.getItem('markly.width')) ? localStorage.getItem('markly.width') : 'normal';
+const setScrollerWidth = (w) => root.style.setProperty('--scroller-w', `${Math.round(w)}px`);
+const scrollerWatch = new ResizeObserver(([e]) => setScrollerWidth(e.contentRect.width));
 function applyPageWidth() {
   if (widthPref === 'normal') delete root.dataset.width; else root.dataset.width = widthPref;
+  if (widthPref === 'tables') { setScrollerWidth(scroller.clientWidth); scrollerWatch.observe(scroller); }
+  else { scrollerWatch.disconnect(); root.style.removeProperty('--scroller-w'); }
   $('btn-width').title = `Page width: ${WIDTH_NAMES[widthPref]} (${WIDTH_KEY})`;
 }
 function cycleWidth() {
@@ -118,9 +123,6 @@ function cycleWidth() {
   applyPageWidth();
   toast(`Page width: ${WIDTH_NAMES[widthPref]}`, 1600);
 }
-const setScrollerWidth = (w) => root.style.setProperty('--scroller-w', `${w}px`);
-setScrollerWidth(scroller.clientWidth);
-new ResizeObserver(([e]) => setScrollerWidth(e.contentRect.width)).observe(scroller);
 
 // ---------------------------------------------------------------- TOC
 function toggleToc(force) {

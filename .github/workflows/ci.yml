@@ -70,3 +70,6 @@ jobs:
             src-tauri/target/release/bundle/**/*.dmg
           if-no-files-found: warn
           retention-days: 14
+      # After the build, so dist-web/ (which the app embeds) exists.
+      - name: Rust tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml

@@ -8,6 +8,17 @@
   and lets a top-level table that needs more room grow past it, centred, up to about 1,400px; tables
   that already fit, and tables inside lists, quotes and callouts, are unchanged. *Wide page* widens
   the whole column (up to about 1,400px), in Markdown and plain text files. Printing is unchanged.
+- macOS: Markly is offered under *Open With* for `.env` files too, as on Windows.
+
+### Fixed
+- macOS: *Print / Save as PDF* (and ⌘P) did nothing. The web view needs a permission to print
+  there that Windows and Linux don't.
+- macOS: on a Mac without the Command Line Tools, opening a file in a Git repository could make
+  macOS offer to install them, every time (Apple's `/usr/bin/git` is only a stub then). Markly now
+  uses that git only when the tools are installed, and also finds Git from Homebrew or MacPorts.
+
+### Changed
+- CI runs the Rust tests on Windows, Linux and macOS.
 
 ## 1.6.0 — 2026-10-24
 

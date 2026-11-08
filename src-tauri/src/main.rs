@@ -391,28 +391,6 @@ async fn git_file(root: String, rev: String, rel: String) -> Result<String, git:
     blocking(move || git::show_file(&root, &rev, &rel).map(decode)).await
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn binary_detection_and_decoding() {
-        assert!(looks_binary(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"));
-        assert!(!looks_binary(b"plain text\n"));
-        assert!(!looks_binary(&[0xFF, 0xFE, b'h', 0, b'i', 0])); // UTF-16 LE text has NUL bytes
-        assert_eq!(decode(vec![0xFF, 0xFE, b'h', 0, b'i', 0]), "hi");
-        assert_eq!(decode(vec![0xFE, 0xFF, 0, b'h', 0, b'i']), "hi");
-        assert_eq!(decode(b"\xEF\xBB\xBFbom".to_vec()), "bom");
-    }
-
-    #[test]
-    fn dotenv_files_are_listed() {
-        assert!(is_dotfile(".git", true) && is_dotfile(".gitignore", false) && is_dotfile(".envrc", false) && is_dotfile(".environment", false));
-        assert!(!is_dotfile(".env", false) && !is_dotfile(".env.local", false) && !is_dotfile(".env.example", false) && !is_dotfile("prod.env", false));
-        assert!(is_dotfile(".env", true)); // a virtualenv folder
-    }
-}
-
 fn initial_from_args() -> Option<String> {
     std::env::args_os()
         .skip(1)
@@ -463,4 +441,26 @@ fn main() {
                 }
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn binary_detection_and_decoding() {
+        assert!(looks_binary(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR"));
+        assert!(!looks_binary(b"plain text\n"));
+        assert!(!looks_binary(&[0xFF, 0xFE, b'h', 0, b'i', 0])); // UTF-16 LE text has NUL bytes
+        assert_eq!(decode(vec![0xFF, 0xFE, b'h', 0, b'i', 0]), "hi");
+        assert_eq!(decode(vec![0xFE, 0xFF, 0, b'h', 0, b'i']), "hi");
+        assert_eq!(decode(b"\xEF\xBB\xBFbom".to_vec()), "bom");
+    }
+
+    #[test]
+    fn dotenv_files_are_listed() {
+        assert!(is_dotfile(".git", true) && is_dotfile(".gitignore", false) && is_dotfile(".envrc", false) && is_dotfile(".environment", false));
+        assert!(!is_dotfile(".env", false) && !is_dotfile(".env.local", false) && !is_dotfile(".env.example", false) && !is_dotfile("prod.env", false));
+        assert!(is_dotfile(".env", true)); // a virtualenv folder
+    }
 }

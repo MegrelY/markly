@@ -37,9 +37,51 @@ struct Output {
     truncated: bool,
 }
 
+const NO_GIT: &str = "Git isn't installed, or it isn't on the PATH.";
+
+/// The git program to run, found once; `None` if there is no usable git.
+fn git_program() -> Option<&'static Path> {
+    static GIT: std::sync::OnceLock<Option<PathBuf>> = std::sync::OnceLock::new();
+    GIT.get_or_init(find_git).as_deref()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn find_git() -> Option<PathBuf> {
+    Some(PathBuf::from("git")) // from the PATH, when it runs
+}
+
+/// macOS: `/usr/bin/git` is a stub. Without the Command Line Tools it opens a system dialog that
+/// offers to install them, on every call, so it is used only when the tools are installed. Apps
+/// opened from the Finder get a short PATH, so the Homebrew and MacPorts folders are searched too.
+#[cfg(target_os = "macos")]
+fn find_git() -> Option<PathBuf> {
+    let path = std::env::var_os("PATH").unwrap_or_default();
+    let extra = ["/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin"].map(PathBuf::from);
+    for dir in std::env::split_paths(&path).chain(extra) {
+        let git = dir.join("git");
+        if !git.is_file() {
+            continue;
+        }
+        if dir.as_path() != Path::new("/usr/bin") || developer_tools_installed() {
+            return Some(git);
+        }
+    }
+    None
+}
+
+/// `xcode-select -p` prints the developer folder (Command Line Tools or Xcode) and fails when there
+/// is none; it never opens the install dialog.
+#[cfg(target_os = "macos")]
+fn developer_tools_installed() -> bool {
+    let Ok(out) = Command::new("/usr/bin/xcode-select").arg("-p").stdin(Stdio::null()).stderr(Stdio::null()).output() else {
+        return false;
+    };
+    out.status.success() && Path::new(String::from_utf8_lossy(&out.stdout).trim()).join("usr/bin/git").is_file()
+}
+
 /// Runs `git <args>` in `cwd` and returns its standard output (at most `limit` bytes).
 fn run(cwd: &Path, args: &[&OsStr], limit: usize) -> Result<Output, GitError> {
-    let mut cmd = Command::new("git");
+    let mut cmd = Command::new(git_program().ok_or_else(|| err("nogit", NO_GIT))?);
     cmd.current_dir(cwd)
         .args(["--no-pager", "--literal-pathspecs"])
         .args(["-c", "core.quotepath=off", "-c", "core.fsmonitor=false", "-c", "color.ui=never", "-c", "log.showSignature=false"])
@@ -60,7 +102,7 @@ fn run(cwd: &Path, args: &[&OsStr], limit: usize) -> Result<Output, GitError> {
     }
     let mut child = cmd.spawn().map_err(|e| {
         if e.kind() == std::io::ErrorKind::NotFound {
-            err("nogit", "Git isn't installed, or it isn't on the PATH.")
+            err("nogit", NO_GIT)
         } else {
             err("git", format!("Couldn't run git: {e}"))
         }

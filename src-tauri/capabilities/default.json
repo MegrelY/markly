@@ -11,6 +11,7 @@
     "core:window:allow-set-theme",
     "core:window:allow-show",
     "core:window:allow-close",
+    "core:webview:allow-print",
     "dialog:allow-open",
     "opener:allow-open-url",
     "opener:allow-default-urls",

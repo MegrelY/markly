@@ -99,7 +99,7 @@ From the [latest release](../../releases/latest):
 
 Files over 1 MB are shown as written (not formatted), files over 5 MB as plain text, and binary files
 with a short "not a text file" note. Installers add Markly to *Open with* for `.txt .log .json .yaml
-.yml .toml .ini .csv .xml .html .htm .css .js .ts .py`, but never make it the default for them.
+.yml .toml .ini .env .csv .xml .html .htm .css .js .ts .py`, but never make it the default for them.
 
 ## Shortcuts
 
@@ -272,8 +272,8 @@ sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appi
 **macOS:** `npm install`, then
 `rustup target add aarch64-apple-darwin x86_64-apple-darwin && cargo tauri build --target universal-apple-darwin`.
 
-**CI / releases:** `.github/workflows/ci.yml` builds every push and pull request on all three
-platforms. Pushing a tag such as `v1.6.0` runs `.github/workflows/release.yml`, which creates a GitHub
+**CI / releases:** `.github/workflows/ci.yml` runs the UI checks, then builds every push and pull
+request on all three platforms and runs the Rust tests on each. Pushing a tag such as `v1.6.0` runs `.github/workflows/release.yml`, which creates a GitHub
 release with the Windows installer and portable exe, the Linux deb/rpm/AppImage and the macOS dmg.
 To rebuild an existing tag, run `gh workflow run release.yml --ref main -f tag=v1.6.0`. It reuses
 that tag's release, whether it is a draft or published, and replaces assets that have the same names.
