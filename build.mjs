@@ -31,7 +31,9 @@ const opts = {
   format: 'esm',
   splitting: true,          // mermaid becomes a lazily loaded chunk
   minify: true,
-  target: ['chrome105'],
+  // WebView2 on Windows; WKWebView on macOS 10.15+ needs Safari 15.4 (WebKitGTK on Linux is newer).
+  // esbuild lowers newer syntax, such as class static blocks, and adds -webkit- prefixes for it.
+  target: ['chrome105', 'safari15.4'],
   outdir: out,
   chunkNames: 'chunks/[name]-[hash]',
   assetNames: 'assets/[name]-[hash]',

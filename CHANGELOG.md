@@ -20,6 +20,18 @@
   clicking one of its buttons left nothing focused, so the arrow keys and Page Down didn't scroll the
   document until you clicked it. WebKit doesn't focus a button when you click it; the document now
   gets the focus in that case too.
+- macOS with Safari 15.4 to 16.3 (such as macOS 10.15): no Mermaid diagram loaded, and YAML files
+  weren't formatted, because the bundle used JavaScript syntax that Safari only parses from 16.4. The
+  build now also targets Safari 15.4, the oldest the Mac app supports, and adds the `-webkit-` CSS
+  prefixes older WebKit needs (so interface text such as the toolbar can't be selected by mistake).
+- macOS with Safari before 17: a Mermaid diagram with a link failed ("URL.canParse is not a
+  function"), and use case diagrams failed before Safari 17.4. Markly now supplies those two functions.
+- macOS with Safari before 16.2: the banner shown while viewing an earlier version from the file
+  history was see-through, so the document showed behind it when scrolling.
+
+### Security
+- Updated DOMPurify (3.4.17), markdown-it (15.0.3) and Mermaid (12.2.0, which uses a fixed KaTeX) for
+  published advisories, including two ways a crafted Markdown file could make rendering very slow.
 
 ### Changed
 - CI runs the Rust tests on Windows, Linux and macOS.
