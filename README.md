@@ -280,11 +280,16 @@ that tag's release, whether it is a draft or published, and replaces assets that
 
 Frontend only: `npm run build` (writes `dist-web/`). Then:
 - `node tools/screenshot.mjs` renders the sample in headless Chrome.
-- `node tools/interact.mjs` runs the UI checks (it builds a small Git repository with
-  `tools/make-git-fixture.sh` for the history tests).
+- `node tools/interact.mjs` runs the UI checks in headless Chrome (it builds a small Git repository with
+  `tools/make-git-fixture.sh` for the history tests). It prints PASS, FAIL or SKIP (with the reason) for
+  each check, then a count, and exits with an error if a check fails.
 - Both use the browser in `CHROME` (default `/usr/bin/google-chrome`). On Windows, point it at any Chrome
   or Chromium, such as Playwright's (`%LOCALAPPDATA%\ms-playwright\chromium-*\chrome-win64\chrome.exe`). In
   Git Bash, add `MSYS_NO_PATHCONV=1` before passing a `/samples/…` path, or Bash rewrites it.
+- `BROWSER=webkit node tools/interact.mjs` runs the same checks in WebKit, the engine of the macOS and Linux
+  apps. Install Playwright's WebKit once with `npx playwright-core install webkit` (on Linux, add
+  `--with-deps` for the system libraries it needs). Playwright's WebKit reports a Mac on every system, so
+  the app shows the macOS shortcut labels (⌘) there. CI runs the checks in both browsers.
 - `cargo test --manifest-path src-tauri/Cargo.toml` runs the Rust tests (git commands on a temporary repository).
 - `node tools/bench.mjs` measures first-render time and memory.
 

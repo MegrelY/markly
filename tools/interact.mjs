@@ -1,5 +1,7 @@
 // Headless interaction checks for the frontend (browser host mode).
-import puppeteer from 'puppeteer-core';
+// BROWSER=chromium (default) uses the Chrome or Chromium in CHROME; BROWSER=webkit uses Playwright's
+// WebKit (`npx playwright-core install webkit`), the engine of the macOS and Linux apps.
+import { chromium, webkit } from 'playwright-core';
 import { fileURLToPath } from 'node:url';
 import http from 'node:http'; import fs from 'node:fs'; import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -7,28 +9,55 @@ import { maybeServeList, maybeServeGit } from './dev-list.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const T = { '.js': 'text/javascript', '.css': 'text/css', '.html': 'text/html', '.svg': 'image/svg+xml', '.md': 'text/markdown', '.woff2': 'font/woff2' };
 const s = http.createServer((q, r) => { if (maybeServeList(ROOT, q, r) || maybeServeGit(ROOT, q, r)) return; const u = decodeURIComponent(new URL(q.url, 'http://x').pathname); fs.readFile(path.join(ROOT, u), (e, d) => { if (e) { r.writeHead(404); return r.end(); } r.writeHead(200, { 'content-type': T[path.extname(u)] || 'application/octet-stream' }); r.end(d); }); }).listen(0);
-const b = await puppeteer.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
-const p = await b.newPage();
+const BROWSER = (process.env.BROWSER || 'chromium').toLowerCase();
+if (!['chromium', 'webkit'].includes(BROWSER)) throw new Error(`BROWSER must be chromium or webkit, not ${BROWSER}`);
+const WEBKIT = BROWSER === 'webkit';
+const b = WEBKIT
+  ? await webkit.launch({ headless: true })
+  : await chromium.launch({ executablePath: process.env.CHROME || '/usr/bin/google-chrome', headless: true, args: ['--no-sandbox'] });
+const origin = `http://localhost:${s.address().port}`;
+const ctx = await b.newContext({ viewport: { width: 1200, height: 800 } });
+await ctx.grantPermissions(WEBKIT ? ['clipboard-read'] : ['clipboard-read', 'clipboard-write'], { origin });
+const p = await ctx.newPage();
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
-await p.setViewport({ width: 1200, height: 800 });
-const base = `http://localhost:${s.address().port}/dist-web/index.html`;
-await b.defaultBrowserContext().overridePermissions(`http://localhost:${s.address().port}`, ['clipboard-read', 'clipboard-write', 'clipboard-sanitized-write']);
+const base = `${origin}/dist-web/index.html`;
 const clip = () => p.evaluate(() => navigator.clipboard.readText());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Loads a page in place of the current one, so the tab never has a page to go back to, like the app
+// (a single page). WebKit on Windows goes Back on Backspace when no text field has focus.
+const load = async (url) => {
+  const loaded = p.waitForEvent('load');
+  await p.evaluate((u) => { setTimeout(() => location.replace(u)); }, url);
+  await loaded;
+};
+// Opens a file the way the app does and waits until it is shown. (Returning the app's promise from
+// page.evaluate fails now and then in Chromium with "Resulting promise was garbage collected".)
+const openDoc = async (file, opts = {}) => {
+  await p.evaluate(([f, o]) => { const done = () => { window.__openDone = true; }; window.__openDone = false; window.__marklyOpen(f, o).then(done, done); }, [file, opts]);
+  await p.waitForFunction(() => window.__openDone);
+};
+// Each result is printed as it comes, so a run that stops early still shows how far it got.
 const results = [];
-const check = (name, ok, extra = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${name} ${extra}`);
+const report = (line) => { results.push(line); console.log(line); };
+const check = (name, ok, extra = '') => report(`${ok ? 'PASS' : 'FAIL'} ${name} ${extra}`);
+// A check that can't run in this browser, with the reason.
+const skip = (name, why) => report(`SKIP ${name} (${BROWSER}: ${why})`);
 
 // welcome screen
-await p.goto(base, { waitUntil: 'load' });
+await load(base);
 await p.waitForSelector('#mk-welcome:not([hidden])');
+// Playwright's WebKit reports Safari's macOS user agent on every OS, so there the app shows the macOS
+// shortcut labels (⌘ where Windows and Linux show Ctrl), as in the Mac app.
+const MAC = await p.evaluate(() => /^Mac/.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent));
+console.log(`# ${BROWSER} ${b.version()}, ${MAC ? 'macOS' : 'Windows and Linux'} shortcut labels`);
 check('welcome screen when no file', true);
 check('copy disabled without a file', await p.$eval('#btn-copy', (e) => e.disabled && getComputedStyle(e).pointerEvents === 'none'));
 await p.click('#btn-files');
-await p.waitForFunction(() => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === '/' && document.querySelectorAll('#mk-files .fb-item').length > 3, { timeout: 5000 });
+await p.waitForFunction(() => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === '/' && document.querySelectorAll('#mk-files .fb-item').length > 3, null, { timeout: 5000 });
 check('folder browser works without a document (starts at home)', true);
 await p.click('#btn-files');
 
-await p.goto(base + '?file=/samples/showcase.md', { waitUntil: 'load' });
+await load(base + '?file=/samples/showcase.md');
 await p.waitForSelector('body[data-ready="1"]');
 check('title', (await p.title()) === 'showcase.md — Markly', await p.title());
 check('toc entries', (await p.$$eval('#toc-list a', (a) => a.length)) >= 10);
@@ -145,7 +174,7 @@ check('recent menu lists files', (await p.$$eval('#recent-menu .recent-item', (a
 
 // folder browser
 await p.keyboard.press('Escape');
-await p.evaluate(() => window.__marklyOpen('/samples/showcase.md'));
+await openDoc('/samples/showcase.md');
 await p.waitForFunction(() => document.title.startsWith('showcase.md'));
 const TMP = path.join(ROOT, 'tests/_fb_tmp');
 // A folder that can't be listed: chmod elsewhere; on Windows (where chmod can't) an ACL entry
@@ -168,7 +197,7 @@ lockDir(path.join(TMP, 'locked'), true);
 const fb = {
   names: () => p.$$eval('#mk-files .fb-item', (a) => a.map((x) => x.querySelector('.fb-name').textContent)),
   path: () => p.$eval('#mk-files .fb-path', (e) => e.textContent.replace(/\u200E/g, '')),
-  waitPath: (want) => p.waitForFunction((w) => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === w, { timeout: 5000 }, want),
+  waitPath: (want) => p.waitForFunction((w) => document.querySelector('#mk-files .fb-path')?.textContent.replace(/\u200E/g, '') === w, want, { timeout: 5000 }),
   sel: () => p.$eval('#mk-files .fb-item.sel .fb-name', (e) => e.textContent).catch(() => null),
 };
 check('files button between toc and open', await p.evaluate(() => document.getElementById('btn-toc').nextElementSibling.id === 'btn-files' && document.getElementById('btn-files').nextElementSibling.id === 'btn-open'));
@@ -184,12 +213,12 @@ check('markdown files accent', await p.$eval('#mk-files .fb-item.md:not(.current
 await p.click('#mk-files .fb-item.dir');
 check('single click on folder only selects', (await fb.path()) === '/samples' && (await fb.sel()) === 'images');
 fs.writeFileSync(path.join(ROOT, 'samples/images/.tmp-photo.png'.replace('.tmp', 'tmp')), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0]));
-await p.click('#mk-files .fb-item.dir', { count: 2 });
+await p.click('#mk-files .fb-item.dir', { clickCount: 2 });
 await fb.waitPath('/samples/images');
 check('viewable files (svg) openable, muted with a type icon', await p.$eval('#mk-files .fb-item.view', (e) => e.textContent === 'banner.svg' && getComputedStyle(e).opacity === '1' && getComputedStyle(e).cursor === 'pointer' && !!e.querySelector('svg circle, svg path')));
 check('double click enters folder', true);
 check('other files dimmed', await p.$eval('#mk-files .fb-item.other', (e) => +getComputedStyle(e).opacity < 0.7));
-await p.click('#mk-files .fb-item.other', { count: 2 });
+await p.click('#mk-files .fb-item.other', { clickCount: 2 });
 await sleep(300);
 check('other files never opened', (await p.title()).startsWith('showcase.md'));
 fs.rmSync(path.join(ROOT, 'samples/images/tmp-photo.png'));
@@ -203,7 +232,7 @@ await p.click('#mk-files button.fb-crumb[data-path="/"]');
 await fb.waitPath('/');
 check('breadcrumb navigates', (await fb.names()).includes('samples'));
 check('hidden files not listed', !(await fb.names()).some((n) => n.startsWith('.')));
-await p.evaluate(() => window.__marklyOpen('/tests/_fb_tmp/a.md'));
+await openDoc('/tests/_fb_tmp/a.md');
 await fb.waitPath('/tests/_fb_tmp');
 check('follows the current file', (await p.$eval('#mk-files .fb-item.current .fb-name', (e) => e.textContent)) === 'a.md');
 check('hidden markdown not listed', !(await fb.names()).includes('.hidden.md'));
@@ -244,7 +273,7 @@ await p.focus('#mk-files .fb-list');
 await p.keyboard.press('Home');
 await p.keyboard.type('a');
 check('type-ahead', (await fb.sel()) === 'a.md');
-await p.evaluate(() => window.__marklyOpen('/samples/showcase.md'));
+await openDoc('/samples/showcase.md');
 await fb.waitPath('/samples');
 await p.focus('#mk-files .fb-list');
 await p.keyboard.type('o');
@@ -274,7 +303,7 @@ check('closing the panel moves focus out of it', await p.evaluate(() => !documen
 await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyE'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
 await p.waitForSelector('#mk-files:not([hidden]) .fb-item.current');
 check('ctrl+shift+e opens panel', true);
-await p.goto(base + '?file=/samples/showcase.md', { waitUntil: 'load' });
+await load(base + '?file=/samples/showcase.md');
 await p.waitForSelector('#mk-files:not([hidden]) .fb-item.current', { timeout: 5000 });
 const w2 = await p.$eval('#mk-files', (e) => e.getBoundingClientRect().width);
 check('open state and width remembered', Math.abs(w2 - w1) <= 1, `${w2}`);
@@ -290,20 +319,20 @@ fs.rmSync(TMP, { recursive: true, force: true });
   fs.writeFileSync(path.join(FX, 'untracked.md'), '# Not committed\n');
   const FILE = '/tests/_git_fixture/docs/Guides ü/User guide.md';
   const hk = async () => { await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyH'); await p.keyboard.up('Shift'); await p.keyboard.up('Control'); };
-  const settled = () => p.waitForFunction(() => { const d = document.querySelector('.hs-diff'); return d && !d.classList.contains('busy') && d.querySelector('.hs-stat, .hs-empty, .df-note'); }, { timeout: 8000 });
+  const settled = () => p.waitForFunction(() => { const d = document.querySelector('.hs-diff'); return d && !d.classList.contains('busy') && d.querySelector('.hs-stat, .hs-empty, .df-note'); }, null, { timeout: 8000 });
   const pickRow = async (i, mods = []) => { for (const m of mods) await p.keyboard.down(m); await p.click(`.hs-item[data-i="${i}"]`); for (const m of mods) await p.keyboard.up(m); await sleep(150); await settled(); };
 
-  await p.goto(base + '?file=' + encodeURIComponent('/tests/_git_fixture/untracked.md') + '&git=1', { waitUntil: 'load' });
+  await load(base + '?file=' + encodeURIComponent('/tests/_git_fixture/untracked.md') + '&git=1');
   await p.waitForSelector('body[data-ready="1"]'); await sleep(300);
   check('history button hidden for untracked file', await p.$eval('#btn-history', (e) => e.hidden));
   await hk(); await sleep(150);
   check('history shortcut explains when not tracked', /Git repository/.test(await p.$eval('#mk-toast', (e) => e.textContent)));
 
-  await p.goto(base + '?file=' + encodeURIComponent(FILE) + '&git=1', { waitUntil: 'load' });
+  await load(base + '?file=' + encodeURIComponent(FILE) + '&git=1');
   await p.waitForSelector('body[data-ready="1"]');
   await p.waitForSelector('#btn-history:not([hidden])', { timeout: 5000 });
   check('history button shown for tracked file', true);
-  check('history button title', await p.$eval('#btn-history', (e) => e.title) === 'File history (Ctrl+Shift+H)');
+  check('history button title', await p.$eval('#btn-history', (e) => e.title) === `File history (${MAC ? '⇧⌘H' : 'Ctrl+Shift+H'})`);
   check('history code not loaded until used', await p.evaluate(() => !performance.getEntriesByType('resource').some((r) => /history/.test(r.name)) && !document.querySelector('link[href="history.css"]')));
   await hk();
   await p.waitForSelector('#mk-history:not([hidden]) .hs-item.sel'); await settled();
@@ -368,12 +397,12 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await p.keyboard.press('Escape');
   check('esc closes history', await p.$eval('#mk-history', (e) => e.hidden) && !!(await p.$('#mk-revbar')));
   await p.keyboard.press('Escape');
-  await p.waitForFunction(() => !document.getElementById('mk-revbar'), { timeout: 5000 }).catch(() => {}); await sleep(100);
+  await p.waitForFunction(() => !document.getElementById('mk-revbar'), null, { timeout: 5000 }).catch(() => {}); await sleep(100);
   check('esc returns to the current version', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('and private'));
   await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden]) .hs-item.sel'); await settled();
   await pickRow(2); await p.click('[data-act="view"]'); await p.waitForSelector('#mk-revbar'); await sleep(300);
   await p.click('#mk-revbar [data-act="current"]');
-  await p.waitForFunction(() => !document.getElementById('mk-revbar'), { timeout: 5000 }).catch(() => {}); await sleep(100);
+  await p.waitForFunction(() => !document.getElementById('mk-revbar'), null, { timeout: 5000 }).catch(() => {}); await sleep(100);
   check('return to current version button', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('Shortcuts'));
   await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden])');
   await p.click('#btn-history');
@@ -384,7 +413,7 @@ fs.rmSync(TMP, { recursive: true, force: true });
 // ---------------------------------------------------------------- 1.4: text, code & data files
 {
   const F = '/tests/files/';
-  const open = async (f) => { await p.evaluate((x) => window.__marklyOpen(x), F + f); await p.waitForFunction(() => document.querySelector('#mk-content .vw'), { timeout: 8000 }); await sleep(150); };
+  const open = async (f) => { await openDoc(F + f); await p.waitForFunction(() => document.querySelector('#mk-content .vw'), null, { timeout: 8000 }); await sleep(150); };
   const st = () => p.evaluate(() => ({
     title: document.title, bar: document.querySelector('.vw-bar')?.textContent.replace(/\s+/g, ' ').trim() || '',
     text: document.querySelector('.vw-body')?.innerText || '', lines: document.querySelectorAll('.vw-lines .vl').length,
@@ -498,11 +527,11 @@ fs.rmSync(TMP, { recursive: true, force: true });
 
   // links from Markdown open viewable files in Markly; folder browser
   fs.writeFileSync(path.join(ROOT, 'tests/files/links.md'), '# Links\n\n[the data](data.json) and [script](sample.py)\n');
-  await p.evaluate((x) => window.__marklyOpen(x), F + 'links.md'); await p.waitForSelector('body[data-ready="1"]');
-  await p.click('#mk-content a[href="sample.py"]'); await p.waitForFunction(() => document.title.startsWith('sample.py'), { timeout: 5000 }).catch(() => {});
+  await openDoc(F + 'links.md'); await p.waitForSelector('body[data-ready="1"]');
+  await p.click('#mk-content a[href="sample.py"]'); await p.waitForFunction(() => document.title.startsWith('sample.py'), null, { timeout: 5000 }).catch(() => {});
   check('link to a code file opens it in Markly', (await p.title()) === 'sample.py — Markly');
   await p.keyboard.down('Alt'); await p.keyboard.press('ArrowLeft'); await p.keyboard.up('Alt');
-  await p.waitForFunction(() => document.title.startsWith('links.md'), { timeout: 5000 }).catch(() => {});
+  await p.waitForFunction(() => document.title.startsWith('links.md'), null, { timeout: 5000 }).catch(() => {});
   check('back returns to the Markdown file (rendered)', (await p.title()) === 'links.md — Markly' && !(await p.$('.vw')));
   fs.rmSync(path.join(ROOT, 'tests/files/links.md'));
 
@@ -513,7 +542,7 @@ fs.rmSync(TMP, { recursive: true, force: true });
   fs.writeFileSync(path.join(ROOT, 'tests/files/weblinks.md'), '# Web\n\n[site](https://example.com/a?b=1&c=2) and https://example.org/auto.\n\n' +
     'Inline `https://example.net/inline` code.\n\n```bash\ncurl "https://api.example.com/v1/items?x=1&y=2"\n```\n\n[`https://example.com/in-link`](https://example.com/target)\n\n' +
     '[titled](https://example.com/t "Docs") and [a file](data.json)\n');
-  await p.evaluate((x) => window.__marklyOpen(x), F + 'weblinks.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
+  await openDoc(F + 'weblinks.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
   await p.click('#mk-content a[href^="https://example.com/a"]'); await p.click('#mk-content a[href^="https://example.org"]'); await sleep(50);
   check('markdown: web links open in the browser on click', JSON.stringify(await opened()) === JSON.stringify(['https://example.com/a?b=1&c=2', 'https://example.org/auto']));
   check('markdown: URLs in code are marked, trailing quote/punctuation left out', JSON.stringify(await p.$$eval('#mk-content .bare-url', (a) => a.map((e) => e.dataset.url))) ===
@@ -531,7 +560,7 @@ fs.rmSync(TMP, { recursive: true, force: true });
   check('copy code keeps the URL text', await p.$eval('#mk-content pre code', (e) => e.textContent.includes('curl "https://api.example.com/v1/items?x=1&y=2"')));
 
   // right-click menu: selected text (copy, search or open) and links (open, copy address)
-  const rightClick = (sel, select) => p.evaluate((sel, select) => {
+  const rightClick = (sel, select) => p.evaluate(([sel, select]) => {
     const el = document.querySelector(sel);
     if (select) { const r = document.createRange(); r.selectNodeContents(el); getSelection().removeAllRanges(); getSelection().addRange(r); }
     else getSelection().removeAllRanges();
@@ -539,7 +568,7 @@ fs.rmSync(TMP, { recursive: true, force: true });
     el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4 }));
     const m = document.getElementById('ctx-menu');
     return m.hidden ? null : [...m.querySelectorAll('.ci-label')].map((e) => e.textContent);
-  }, sel, select);
+  }, [sel, select]);
   const pick = async (i) => { await p.click(`#ctx-menu button[data-i="${i}"]`); await sleep(100); };
   check('right-click selected text: copy, search, highlight, pin', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Search Google for “Web”', 'Highlight', 'Pin this spot']));
   await pick(1);
@@ -579,17 +608,17 @@ fs.rmSync(TMP, { recursive: true, force: true });
   const write = (intro, setup) => fs.writeFileSync(file, `# Notes\n\n${intro}## Setup\n\nInstall the tools first.\n\n${setup}\n\n${filler('Filler')}## Usage\n\nRun it with the default profile and watch the log.\n\n${filler('More')}`);
   write('', 'The server reads its settings from config.toml at startup.');
   const open = async (f) => {
-    await p.evaluate((x) => window.__marklyOpen(x), F + f);
-    await p.waitForFunction((f) => document.title.startsWith(f) && document.body.dataset.ready === '1', { timeout: 8000 }, f); await sleep(200);
+    await openDoc(F + f);
+    await p.waitForFunction((f) => document.title.startsWith(f) && document.body.dataset.ready === '1', f, { timeout: 8000 }); await sleep(200);
   };
-  const rightClick = (sel, text) => p.evaluate((sel, text) => {
+  const rightClick = (sel, text) => p.evaluate(([sel, text]) => {
     const el = [...document.querySelectorAll(sel)].find((e) => !text || e.textContent.includes(text));
     getSelection().removeAllRanges();
     if (text) { const n = el.firstChild, i = n.nodeValue.indexOf(text); const r = new Range(); r.setStart(n, i); r.setEnd(n, i + text.length); getSelection().addRange(r); }
     const b = el.getBoundingClientRect();
     el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 4, clientY: b.top + 4 }));
     return [...document.querySelectorAll('#ctx-menu:not([hidden]) .ci-label')].map((e) => e.textContent);
-  }, sel, text);
+  }, [sel, text]);
   const pick = async (label) => { await p.evaluate((l) => [...document.querySelectorAll('#ctx-menu button')].find((b) => b.querySelector('.ci-label').textContent === l).click(), label); await sleep(400); };
   const state = () => p.evaluate(() => ({
     pinned: [...document.querySelectorAll('#mk-content .pinned')].map((e) => e.textContent),
@@ -628,8 +657,8 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await open('README'); await open('marks.md');
   const usageAt = () => p.evaluate(() => Math.round(document.getElementById('mk-scroller').getBoundingClientRect().top - document.getElementById('usage').getBoundingClientRect().top));
   check('reopening continues where you left off', Math.abs((await usageAt()) - 40) <= 2 && /Continuing where you left off/.test(await p.$eval('#mk-toast', (e) => e.textContent)), String(await usageAt()));
-  await p.evaluate((x) => window.__marklyOpen(x, { resume: false }), F + 'README'); await sleep(300);
-  await p.evaluate((x) => window.__marklyOpen(x, { resume: false }), F + 'marks.md'); await sleep(400);
+  await openDoc(F + 'README', { resume: false }); await sleep(300);
+  await openDoc(F + 'marks.md', { resume: false }); await sleep(400);
   check('a link to the file opens it at the top', (await p.$eval('#mk-scroller', (e) => e.scrollTop)) === 0);
   await p.$eval('#mk-scroller', (e) => { e.scrollTop += document.getElementById('usage').getBoundingClientRect().top - e.getBoundingClientRect().top + 40; }); await sleep(700);
 
@@ -651,10 +680,12 @@ fs.rmSync(TMP, { recursive: true, force: true });
 }
 
 // sanitizer
-await p.evaluate(() => window.__marklyOpen('/tests/xss-test.md'));
+await openDoc('/tests/xss-test.md');
 await new Promise((r) => setTimeout(r, 500));
 check('scripts stripped', await p.evaluate(() => !document.querySelector('#mk-content script') && !document.querySelector('#mk-content [onerror]') && !window.__pwned));
 
-console.log(results.join('\n'));
+const count = (kind) => results.filter((r) => r.startsWith(kind)).length;
+console.log(`\n${BROWSER}: ${count('PASS')} passed, ${count('FAIL')} failed, ${count('SKIP')} skipped`);
 if (errs.length) console.log('PAGE ERRORS:', errs);
+if (count('FAIL')) process.exitCode = 1;
 await b.close(); s.close();

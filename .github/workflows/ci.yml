@@ -24,13 +24,30 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # interact.mjs exits with an error when a check fails or the run stops early.
       - name: UI checks (headless Chrome)
-        run: |
-          node tools/interact.mjs | tee interact.txt
-          ! grep -q '^FAIL' interact.txt
+        run: node tools/interact.mjs
+
+  # The same checks in WebKit, the engine of the macOS (WKWebView) and Linux (WebKitGTK) apps.
+  frontend-webkit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Playwright WebKit
+        run: npx playwright-core install --with-deps webkit
+      - name: UI checks (headless WebKit)
+        run: node tools/interact.mjs
+        env:
+          BROWSER: webkit
 
   build:
-    needs: frontend
+    needs: [frontend, frontend-webkit]
     strategy:
       fail-fast: false
       matrix:

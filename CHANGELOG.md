@@ -16,9 +16,16 @@
 - macOS: on a Mac without the Command Line Tools, opening a file in a Git repository could make
   macOS offer to install them, every time (Apple's `/usr/bin/git` is only a stub then). Markly now
   uses that git only when the tools are installed, and also finds Git from Homebrew or MacPorts.
+- macOS and Linux: closing the folder browser with its shortcut (⇧⌘E; Ctrl+Shift+E on Linux) after
+  clicking one of its buttons left nothing focused, so the arrow keys and Page Down didn't scroll the
+  document until you clicked it. WebKit doesn't focus a button when you click it; the document now
+  gets the focus in that case too.
 
 ### Changed
 - CI runs the Rust tests on Windows, Linux and macOS.
+- CI runs the UI checks in WebKit, the engine of the macOS and Linux apps, as well as in Chrome. The
+  checks (`tools/interact.mjs`) use Playwright instead of Puppeteer (`BROWSER=webkit` picks WebKit), and a
+  run that stops early now fails CI instead of passing.
 
 ## 1.6.0 — 2026-10-24
 
