@@ -91,9 +91,10 @@ md.renderer.rules.front_matter = (tokens, idx) => {
   return `<details class="front-matter"><summary>Properties</summary>${body}</details>\n`;
 };
 
-// --- Tables: wrapped for horizontal scrolling ---
-md.renderer.rules.table_open = () => '<div class="table-wrap"><table>\n';
-md.renderer.rules.table_close = () => '</table></div>\n';
+// --- Tables: wrapped for horizontal scrolling. The outer box has no style of its own; with the
+// "Wide tables" page width it spans the room a table may take, so the table can centre in it. ---
+md.renderer.rules.table_open = () => '<div class="table-bleed"><div class="table-wrap"><table>\n';
+md.renderer.rules.table_close = () => '</table></div></div>\n';
 
 // --- Code fences: highlight.js, copy button, mermaid placeholder, ```math ---
 md.renderer.rules.fence = (tokens, idx) => {

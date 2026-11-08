@@ -6,4 +6,6 @@
   var z = parseFloat(localStorage.getItem('markly.zoom') || '1');
   if (z && z !== 1) document.documentElement.style.setProperty('--zoom', z);
   if (localStorage.getItem('markly.toc') === '0') document.documentElement.classList.add('toc-hidden');
+  var w = localStorage.getItem('markly.width');
+  if (w === 'tables' || w === 'page') document.documentElement.dataset.width = w;
 })();

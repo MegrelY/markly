@@ -36,6 +36,11 @@ From the [latest release](../../releases/latest):
 - Light and dark themes that follow the system, plus a toggle (System → Light → Dark)
 - Automatic right-to-left layout for Hebrew and Arabic paragraphs
 - Table-of-contents sidebar, find, zoom, print / Save as PDF
+- Page width button in the toolbar (Ctrl+Shift+X), cycling through three choices:
+  - **Normal**: a readable text column.
+  - **Wide tables**: the text column stays as it is, and a table that needs more room grows past it, centred,
+    up to about 1,400px, so wide tables scroll sideways less or not at all.
+  - **Wide page**: the whole page widens (text, tables, code, plain text files), up to about 1,400px.
 - Folder browser panel on the right (Ctrl+Shift+E):
   - Shows the document's folder with breadcrumbs, an Up button and a copyable full path.
   - Click a file to open it: Markdown (accent colour), or text, code and data files (muted, with a type icon). Double-click a folder to go into it.
@@ -68,7 +73,7 @@ From the [latest release](../../releases/latest):
     their text when the file is edited, and are kept by Markly per file: the file itself is never changed.
 - Reopening a file continues where you left off (a link to it still opens at the top).
 - Reloads automatically when the file changes on disk and keeps your scroll position
-- Remembers window size, position, theme, zoom and sidebar state
+- Remembers window size, position, theme, zoom, page width and sidebar state
 - Strips scripts and unsafe HTML from documents, and never launches executables from links
 - Also opens text, code and data files (see [Supported file types](#supported-file-types)):
   - Highlighted code with line numbers, a readable plain-text view, CSV/TSV as a sortable table, and
@@ -127,6 +132,7 @@ Ctrl (⌘[ and ⌘] also go back and forward).
 | **View** | |
 | Zoom in / out / reset | Ctrl+= / Ctrl+- / Ctrl+0, or Ctrl+mouse wheel |
 | Switch theme (System → Light → Dark) | Ctrl+Shift+L |
+| Switch page width (Normal → Wide tables → Wide page) | Ctrl+Shift+X |
 | Print or save as PDF | Ctrl+P |
 
 ## Install

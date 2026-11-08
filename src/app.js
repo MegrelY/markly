@@ -101,6 +101,27 @@ function stepZoom(dir) {
   setZoom(ZOOMS[Math.min(ZOOMS.length - 1, Math.max(0, idx))]);
 }
 
+// ---------------------------------------------------------------- page width
+// Normal keeps the readable text column, Wide tables lets tables grow past it, Wide page widens the
+// column itself (style.css). Wide tables needs the scroll area's width, which CSS can't see there.
+const WIDTH_NAMES = { normal: 'Normal', tables: 'Wide tables', page: 'Wide page' };
+const WIDTHS = Object.keys(WIDTH_NAMES);
+const WIDTH_KEY = IS_MAC ? '⇧⌘X' : 'Ctrl+Shift+X';
+let widthPref = WIDTHS.includes(localStorage.getItem('markly.width')) ? localStorage.getItem('markly.width') : 'normal';
+function applyPageWidth() {
+  if (widthPref === 'normal') delete root.dataset.width; else root.dataset.width = widthPref;
+  $('btn-width').title = `Page width: ${WIDTH_NAMES[widthPref]} (${WIDTH_KEY})`;
+}
+function cycleWidth() {
+  widthPref = WIDTHS[(WIDTHS.indexOf(widthPref) + 1) % WIDTHS.length];
+  localStorage.setItem('markly.width', widthPref);
+  applyPageWidth();
+  toast(`Page width: ${WIDTH_NAMES[widthPref]}`, 1600);
+}
+const setScrollerWidth = (w) => root.style.setProperty('--scroller-w', `${w}px`);
+setScrollerWidth(scroller.clientWidth);
+new ResizeObserver(([e]) => setScrollerWidth(e.contentRect.width)).observe(scroller);
+
 // ---------------------------------------------------------------- TOC
 function toggleToc(force) {
   const hidden = force === undefined ? !root.classList.contains('toc-hidden') : !force;
@@ -745,6 +766,7 @@ $('btn-zoom-out').onclick = () => stepZoom(-1);
 $('btn-zoom-reset').onclick = () => setZoom(1);
 $('btn-print').onclick = () => window.print();
 $('btn-theme').onclick = cycleTheme;
+$('btn-width').onclick = cycleWidth;
 $('btn-recent').onclick = (e) => {
   e.stopPropagation();
   const m = $('recent-menu'); const open = m.hidden;
@@ -768,6 +790,7 @@ document.addEventListener('keydown', (e) => {
   else if (mod && (k === '0' || e.code === 'Numpad0')) setZoom(1);
   else if (mod && (k === '\\' || (e.shiftKey && k === 'o'))) toggleToc();
   else if (mod && e.shiftKey && k === 'l') cycleTheme();
+  else if (mod && e.shiftKey && !e.altKey && k === 'x') cycleWidth();
   else if (mod && k === 'w') host.close();
   else if (mod && k === 'r' || e.key === 'F5') { if (current) openFile(current.path, { history: false, reload: true }); }
   else if (e.key === 'F3') { if (!findState.open) openFind(); else gotoMatch(findState.idx + (e.shiftKey ? -1 : 1)); }
@@ -816,6 +839,7 @@ host.onChange((path) => {
 // ---------------------------------------------------------------- boot
 applyTheme(false);
 setZoom(zoom);
+applyPageWidth();
 if (themePref !== 'system') host.setTheme(themePref);
 (async () => {
   // macOS: files opened while the app is running (Finder / "Open With") arrive as events.

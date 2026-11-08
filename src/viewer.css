@@ -41,6 +41,7 @@
 .vw-lines .vl:hover .vn { opacity: 1; }
 /* plain text: comfortable reading typography */
 .vw-lines.prose { font-size: 1em; line-height: 1.7; max-width: 82ch; margin-inline: auto; }
+html[data-width='page'] .vw-lines.prose { max-width: none; } /* "Wide page" (toolbar) */
 .vw-lines.prose code { font-family: var(--font-sans); white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 .vw-lines.prose .vn { font-family: var(--font-mono); font-size: .8em; padding-top: .2em; }
 

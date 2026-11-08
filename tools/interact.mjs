@@ -78,6 +78,23 @@ await p.click('#btn-theme');
 const t2 = await p.$eval('html', (h) => [h.dataset.pref, h.dataset.theme].join('/'));
 check('theme cycle', t1 === 'light/light' && t2 === 'dark/dark', `${t0} -> ${t1} -> ${t2}`);
 
+// page width: Normal -> Wide tables -> Wide page -> Normal
+const widthState = () => p.evaluate(() => {
+  const c = document.getElementById('mk-content'), r = (el) => { const b = el.getBoundingClientRect(); return [b.left, b.width]; };
+  return { attr: document.documentElement.dataset.width || 'normal', saved: localStorage.getItem('markly.width'), col: r(c.querySelector(':scope > p')),
+    tables: [...c.querySelectorAll(':scope > .table-bleed > .table-wrap')].map(r), scrolls: !!(document.getElementById('mk-scroller').scrollWidth > document.getElementById('mk-scroller').clientWidth) };
+});
+const near = (a, b) => Math.abs(a - b) < 1;
+const pw0 = await widthState();
+await p.click('#btn-width'); const pw1 = await widthState();
+await p.click('#btn-width'); const pw2 = await widthState();
+await p.keyboard.down('Control'); await p.keyboard.down('Shift'); await p.keyboard.press('KeyX'); await p.keyboard.up('Shift'); await p.keyboard.up('Control');
+const pw3 = await widthState();
+check('page width cycles Normal, Wide tables, Wide page (button and Ctrl+Shift+X), and is saved', [pw0, pw1, pw2, pw3].map((s) => s.attr).join() === 'normal,tables,page,normal' && pw2.saved === 'page' && pw3.saved === 'normal', [pw0, pw1, pw2, pw3].map((s) => s.attr).join());
+check('wide tables: the text and a table that fits keep the column', near(pw1.col[0], pw0.col[0]) && near(pw1.col[1], pw0.col[1]) && near(pw1.tables[0][0], pw0.col[0]) && near(pw1.tables[0][1], pw0.col[1]));
+check('wide tables: a wide table grows past the column, centred on it', pw1.tables[1][1] > pw0.col[1] + 50 && near(pw1.tables[1][0] + pw1.tables[1][1] / 2, pw0.col[0] + pw0.col[1] / 2) && !pw1.scrolls, JSON.stringify([pw0.col, pw1.tables[1]]));
+check('wide page widens the text column; Normal restores it', pw2.col[1] > pw0.col[1] + 50 && near(pw3.col[0], pw0.col[0]) && near(pw3.col[1], pw0.col[1]) && near(pw3.tables[1][1], pw0.col[1]));
+
 // TOC click scrolls
 await p.click('#toc-list a[data-id="math"]');
 await new Promise((r) => setTimeout(r, 900));

@@ -135,6 +135,9 @@ button { font: inherit; color: inherit; }
 html[data-pref='system'] #btn-theme .ic-system, html:not([data-pref]) #btn-theme .ic-system,
 html[data-pref='light'] #btn-theme .ic-light, html[data-pref='dark'] #btn-theme .ic-dark { display: block; }
 #btn-theme .ic-system path { stroke: none; }
+#btn-width svg { display: none; }
+html:not([data-width]) #btn-width .ic-normal, html[data-width='tables'] #btn-width .ic-tables,
+html[data-width='page'] #btn-width .ic-page { display: block; }
 html.toc-hidden #btn-toc, html:not(.toc-hidden):not(.toc-empty) #btn-toc { color: var(--muted); }
 html:not(.toc-hidden):not(.toc-empty):not(.no-doc) #btn-toc { background: var(--accent-soft); color: var(--accent); }
 html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-copy, html.no-doc #btn-print, #btn-copy:disabled { opacity: .35; pointer-events: none; }
@@ -231,11 +234,14 @@ kbd {
 
 /* ===================================================================== document */
 .markdown-body {
+  --measure: 50em;   /* the readable column (padding included) */
+  --wide: 87.5em;    /* the column with the "Wide page" width: 1400px at 100% */
+  --pad-x: 3em;
   font-size: calc(16px * var(--zoom));
   line-height: 1.7;
-  max-width: 50em;
+  max-width: var(--measure);
   margin: 0 auto;
-  padding: 2.6em 3em 8em;
+  padding: 2.6em var(--pad-x) 8em;
   color: var(--text);
   overflow-wrap: break-word;
 }
@@ -353,6 +359,9 @@ kbd {
 
 /* tables */
 .table-wrap { overflow-x: auto; margin: 0 0 1.3em; border: 1px solid var(--border); border-radius: 10px; }
+/* Markdown tables: the margin sits on the outer box, so ":last-child" rules (quotes, callouts) still reach it. */
+.table-bleed { margin: 0 0 1.3em; }
+.table-bleed > .table-wrap { margin-bottom: 0; }
 .table-wrap table { border-collapse: collapse; border-spacing: 0; min-width: 100%; margin: 0; font-size: .925em; line-height: 1.55; font-variant-numeric: tabular-nums; }
 .table-wrap th, .table-wrap td { padding: .6em 1em; border-bottom: 1px solid var(--border-soft); border-inline-end: 1px solid var(--border-soft); vertical-align: top; min-width: 5.5em; text-align: start; }
 .table-wrap th:last-child, .table-wrap td:last-child { border-inline-end: 0; }
@@ -412,13 +421,30 @@ kbd {
 .markdown-body :target { scroll-margin-top: 1.2em; }
 .markdown-body li:target { background: var(--accent-soft); border-radius: 6px; }
 
+/* ===================================================================== page width */
+/* Chosen in the toolbar (app.js sets data-width on <html>; none means Normal). "Wide page" widens
+   the column itself. "Wide tables" keeps the column and lets a top-level table grow past it, centred
+   on it, up to the column a wide page would have; a table that fits keeps the column's width.
+   Tables in lists, quotes and callouts keep scrolling inside their indent. --scroller-w (set by
+   app.js) is the width of the scroll area, which CSS can't measure from inside the column. */
+@media screen {
+  html[data-width='page'] .markdown-body:not(:has(> .vw)) { max-width: var(--wide); }
+  html[data-width='tables'] .markdown-body > .table-bleed {
+    margin-inline: min(0px, (100% - min(var(--wide), var(--scroller-w, 100vw)) + 2 * var(--pad-x)) / 2);
+  }
+  html[data-width='tables'] .markdown-body > .table-bleed > .table-wrap {
+    width: fit-content; max-width: 100%; margin-inline: auto;
+    min-width: calc(min(var(--measure), var(--scroller-w, 100vw)) - 2 * var(--pad-x));
+  }
+}
+
 /* ===================================================================== responsive */
 @media (max-width: 860px) {
   #mk-toc { position: absolute; inset: 0 auto 0 0; z-index: 8; box-shadow: var(--shadow); }
-  .markdown-body { padding: 1.8em 1.5em 6em; }
+  .markdown-body { --pad-x: 1.5em; padding: 1.8em var(--pad-x) 6em; }
   .doc-dir { display: none; }
 }
-@media (max-width: 560px) { .zoom, #btn-print { display: none; } }
+@media (max-width: 560px) { .zoom, #btn-width, #btn-print { display: none; } }
 
 /* ===================================================================== print */
 @media print {

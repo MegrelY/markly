@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Page width** button in the toolbar (Ctrl+Shift+X; ⇧⌘X on macOS) that cycles through
+  *Normal*, *Wide tables* and *Wide page*, and is remembered. *Wide tables* keeps the text column
+  and lets a top-level table that needs more room grow past it, centred, up to about 1,400px; tables
+  that already fit, and tables inside lists, quotes and callouts, are unchanged. *Wide page* widens
+  the whole column (up to about 1,400px), in Markdown and plain text files. Printing is unchanged.
+
 ## 1.6.0 — 2026-10-24
 
 ### Added
