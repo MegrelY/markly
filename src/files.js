@@ -160,7 +160,9 @@ export async function show({ focus = false } = {}) {
 
 export function hide() {
   if (!isOpen) return;
-  const hadFocus = panel.contains(document.activeElement);
+  // Focus on the body counts too: WebKit doesn't focus a button on click, so after a click on one of
+  // the panel's buttons nothing has focus, and the keys wouldn't scroll the document.
+  const hadFocus = panel.contains(document.activeElement) || document.activeElement === document.body;
   closeMenu();
   isOpen = false; panel.hidden = true;
   root.classList.remove('files-open');
