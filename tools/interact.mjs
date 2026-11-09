@@ -679,6 +679,19 @@ fs.rmSync(TMP, { recursive: true, force: true });
   fs.rmSync(file);
 }
 
+// built-ins Safari 15.4 lacks (src/compat.js fills them in), in a second tab
+{
+  const md = path.join(ROOT, 'tests/files/old-safari.md');
+  fs.writeFileSync(md, '# Old Safari\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Docs]\n  click B "https://example.com/docs" "Docs"\n```\n');
+  const q = await ctx.newPage();
+  await q.addInitScript(() => { delete Object.groupBy; delete URL.canParse; });
+  await q.goto(base + '?file=/tests/files/old-safari.md', { waitUntil: 'load' });
+  await q.waitForSelector('body[data-ready="1"]');
+  const r = await q.evaluate(() => ({ ok: typeof URL.canParse === 'function' && !!document.querySelector('.mermaid-block svg'), text: document.querySelector('.mermaid-block')?.textContent.slice(0, 80) }));
+  check('mermaid diagram with a link works without URL.canParse and Object.groupBy (Safari before 17)', r.ok, r.ok ? '' : r.text);
+  await q.close(); fs.rmSync(md);
+}
+
 // sanitizer
 await openDoc('/tests/xss-test.md');
 await new Promise((r) => setTimeout(r, 500));

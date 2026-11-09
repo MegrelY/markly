@@ -1,3 +1,4 @@
+import './compat.js';
 import { host } from './host.js';
 import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls } from './render.js';
 import { resolvePath, splitHash, basename, dirname } from './path.js';
