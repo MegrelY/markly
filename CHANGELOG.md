@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.8.0 — 2026-11-15
 
 ### Added
 - **Copy reference**: copies where something is, to point an AI agent (or a person) at it: the file,
