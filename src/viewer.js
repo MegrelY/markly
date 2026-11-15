@@ -60,7 +60,7 @@ function splitLines(html) {
   if (out.length > 1 && out[out.length - 1].replace(/<[^>]+>/g, '') === '') out.pop(); // the final newline
   return out;
 }
-function linesHtml(html, { numbers, wrap, prose, plain }) {
+function linesHtml(html, { numbers, wrap, prose, plain, dirs }) {
   if (plain) {
     // very large files: one text block (no per-line elements), so they still open quickly
     const count = countLines(html);
@@ -70,7 +70,8 @@ function linesHtml(html, { numbers, wrap, prose, plain }) {
   numbers = numbers && lines.length <= MAX_LINE_NUMBERS;
   const cls = ['vw-lines', numbers ? 'nums' : '', wrap ? 'wrap' : '', prose ? 'prose' : 'mono'].filter(Boolean).join(' ');
   const w = String(lines.length).length;
-  const body = lines.map((l, i) => `<div class="vl">${numbers ? `<span class="vn" data-n="${i + 1}"></span>` : ''}<span class="vc">${l}</span></div>`).join('');
+  // A right-to-left line keeps the line numbers on the left and lines up on the right of its row.
+  const body = lines.map((l, i) => `<div class="vl">${numbers ? `<span class="vn" data-n="${i + 1}"></span>` : ''}<span class="vc"${dirs?.lines[i] === 'rtl' ? ' dir="rtl"' : ''}>${l}</span></div>`).join('');
   return { html: `<div class="${cls}" style="--vw-digits:${w}ch"><code class="hljs">${body}</code></div>`, count: lines.length };
 }
 
@@ -185,6 +186,7 @@ async function body(v) {
   const html = ctx.linkifyUrls(lang ? await ctx.highlightCode(text, lang) : esc(text));
   const prose = type.kind === 'text' && !type.mono && !pref('textMono', false);
   return linesHtml(html, {
+    dirs: type.kind === 'text' && !big ? ctx.textDirs(text) : null, // Hebrew or Arabic lines run right to left
     plain: big || countLines(text) > MAX_LINE_NUMBERS,
     numbers: type.kind === 'text' ? pref('textLines', false) : pref('lines', true),
     wrap: type.kind === 'text' || pref('wrap', false),

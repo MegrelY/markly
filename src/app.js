@@ -1,6 +1,6 @@
 import './compat.js';
 import { host } from './host.js';
-import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls } from './render.js';
+import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls, textDirs } from './render.js';
 import { resolvePath, splitHash, basename, dirname } from './path.js';
 import { fileType, isMarkdownPath, isViewable } from './filetypes.js';
 
@@ -280,7 +280,7 @@ let viewerP = null, viewerMod = null;
 function loadViewer() {
   viewerP ||= import('./viewer.js').then(async (m) => {
     await m.init({
-      LS, highlightCode, sanitizePreview, linkifyUrls, assetUrl: host.assetUrl,
+      LS, highlightCode, sanitizePreview, linkifyUrls, textDirs, assetUrl: host.assetUrl,
       changed: () => { if (findState.open && findState.query) runFind(findState.query, false); marksMod?.refresh(); },
     });
     viewerMod = m;

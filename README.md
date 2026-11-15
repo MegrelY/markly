@@ -34,7 +34,8 @@ From the [latest release](../../releases/latest):
 - YAML front matter shown as a collapsible “Properties” panel
 - Inter for text and JetBrains Mono for code, all bundled. Works fully offline.
 - Light and dark themes that follow the system, plus a toggle (System → Light → Dark)
-- Automatic right-to-left layout for Hebrew and Arabic paragraphs
+- Automatic right-to-left layout for Hebrew and Arabic: paragraphs, plain-text code blocks and text files.
+  Each line of a text block runs the way its own first letter does, and highlighted code stays left to right.
 - Table-of-contents sidebar, find, zoom, print / Save as PDF
 - Page width button in the toolbar (Ctrl+Shift+X), cycling through three choices:
   - **Normal**: a readable text column.
