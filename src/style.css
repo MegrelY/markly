@@ -308,9 +308,9 @@ kbd {
 .markdown-alert {
   --c: var(--note);
   margin: 0 0 1.1em; padding: .75em 1.1em; border-inline-start: 3px solid var(--c);
-  background: color-mix(in srgb, var(--c) 7%, transparent); border-radius: 0 10px 10px 0;
+  background: color-mix(in srgb, var(--c) 7%, transparent);
+  border-start-end-radius: 10px; border-end-end-radius: 10px; /* the corners away from the bar, in either direction */
 }
-[dir='rtl'] .markdown-alert, .markdown-alert[dir='rtl'] { border-radius: 10px 0 0 10px; }
 .markdown-alert > :last-child { margin-bottom: 0; }
 .markdown-alert-title { display: flex; align-items: center; gap: .5em; font-weight: 650; color: var(--c); margin: 0 0 .35em !important; font-size: .95em; }
 .markdown-alert-title svg { width: 1em; height: 1em; fill: currentColor; flex: none; }

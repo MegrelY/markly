@@ -55,12 +55,13 @@ export function linkifyUrls(html) {
 // lines have (on a tie, that of the first line with letters).
 const RTL_CHARS = /[\u0590-\u08FF\u200F\uFB1D-\uFDFF\uFE70-\uFEFE\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u;
 const FIRST_STRONG = /[\p{L}\u200E\u200F]/u; // letters, plus the LRM and RLM marks
-const ownDir = (line) => { const m = FIRST_STRONG.exec(line); return m ? (RTL_CHARS.test(m[0]) ? 'rtl' : 'ltr') : ''; };
+/** 'rtl' or 'ltr' by the first letter of `s`, or '' when it has none. */
+export const textDir = (s) => { const m = FIRST_STRONG.exec(s); return m ? (RTL_CHARS.test(m[0]) ? 'rtl' : 'ltr') : ''; };
 /** The direction of `text` as a block and of each of its lines (`text.split('\n')`), or null when
  *  it has no right-to-left letters at all (then all of it is left-to-right). */
 export function textDirs(text) {
   if (!RTL_CHARS.test(text)) return null;
-  const own = text.split('\n').map(ownDir);
+  const own = text.split('\n').map(textDir);
   let n = 0;
   for (const d of own) n += d === 'rtl' ? 1 : d === 'ltr' ? -1 : 0;
   const block = n > 0 || (n === 0 && own.find(Boolean) === 'rtl') ? 'rtl' : 'ltr';

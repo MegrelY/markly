@@ -17,6 +17,9 @@
   to right, now also inside a right-to-left list item, where it used to be laid out right to left.
 
 ### Fixed
+- Hebrew and Arabic lists with blank lines between their items, quotes of more than one paragraph,
+  and callouts (`> [!NOTE]` and friends) kept their numbers, bullets or bar on the left, though their
+  text was right-aligned. They now take the direction of their text, and a callout's title follows it.
 - macOS: *Print / Save as PDF* (and ⌘P) did nothing. The web view needs a permission to print
   there that Windows and Linux don't.
 - macOS: on a Mac without the Command Line Tools, opening a file in a Git repository could make

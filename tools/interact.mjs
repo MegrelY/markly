@@ -657,6 +657,40 @@ fs.rmSync(TMP, { recursive: true, force: true });
   check('rtl: Hebrew lines of a text file run right to left, English lines left to right', JSON.stringify(tx.dirs) === '["rtl","","rtl","rtl"]' && tx.gap >= 0 && tx.gap < 4, JSON.stringify(tx.dirs) + ' ' + tx.gap);
   check('rtl: text file text unchanged', tx.text.startsWith('שלום עולם, זו שורה בעברית.\nThis line is in English.\n2026\n'));
   fs.rmSync(path.join(ROOT, 'tests/files/rtl.md')); fs.rmSync(path.join(ROOT, 'tests/files/rtl.txt'));
+
+  // lists, quotes and callouts whose text is in paragraphs of their own
+  fs.writeFileSync(path.join(ROOT, 'tests/files/rtl-lists.md'), '# Lists\n\n' +
+    '1. פריט ראשון\n\n2. פריט שני\n\n   - תת פריט\n\n<!-- -->\n\n' +            // loose, with a loose nested list
+    '- פריט צמוד\n- עוד פריט\n\n<!-- -->\n\n' +                              // tight
+    '1. First item\n\n2. Second item\n\n<!-- -->\n\n' +                       // loose English
+    '- ```\n  TEXT label must not count\n  ```\n\n  פריט שמתחיל בבלוק קוד\n\n<!-- -->\n\n' +
+    '> פסקה ראשונה בציטוט.\n>\n> פסקה שנייה.\n>\n> 1. 2026\n>\n> 2. 2027\n\n' +
+    '> [!NOTE]\n> הערה בעברית.\n\n> [!TIP]\n> An English tip.\n');
+  await openDoc('/tests/files/rtl-lists.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
+  const ls = await p.evaluate(() => {
+    const c = document.getElementById('mk-content'), dir = (el) => (el ? getComputedStyle(el).direction : 'none');
+    const lists = [...c.querySelectorAll(':scope > ol, :scope > ul')];
+    const [quote] = c.querySelectorAll(':scope > blockquote');
+    const [note, tip] = c.querySelectorAll('.markdown-alert');
+    const bar = (el) => (parseFloat(getComputedStyle(el).borderRightWidth) > 0 ? 'right' : parseFloat(getComputedStyle(el).borderLeftWidth) > 0 ? 'left' : 'none');
+    return {
+      loose: [dir(lists[0]), ...[...lists[0].children].map(dir), dir(lists[0].querySelector('ul')), dir(lists[0].querySelector('ul li'))].join(),
+      tight: [dir(lists[1]), ...[...lists[1].children].map(dir)].join(),
+      english: [dir(lists[2]), ...[...lists[2].children].map(dir)].join(),
+      codeFirst: [dir(lists[3].querySelector('li')), lists[3].querySelector('.code-block').getAttribute('dir')].join(),
+      quote: [dir(quote), bar(quote), dir(quote.querySelector('ol')), dir(quote.querySelector('ol li'))].join(),
+      note: [dir(note), bar(note), dir(note.querySelector('.markdown-alert-title')), getComputedStyle(note).borderTopLeftRadius, getComputedStyle(note).borderTopRightRadius].join(),
+      tip: [dir(tip), bar(tip), getComputedStyle(tip).borderTopLeftRadius, getComputedStyle(tip).borderTopRightRadius].join(),
+    };
+  });
+  check('rtl: a Hebrew list with blank lines between items runs right to left, nested list too', ls.loose === 'rtl,rtl,rtl,rtl,rtl', ls.loose);
+  check('rtl: a tight Hebrew list still runs right to left', ls.tight === 'rtl,rtl,rtl', ls.tight);
+  check('rtl: an English list with blank lines stays left to right', ls.english === 'ltr,ltr,ltr', ls.english);
+  check('rtl: a list item that starts with a code block takes its direction from its text', ls.codeFirst === 'rtl,ltr', ls.codeFirst);
+  check('rtl: a Hebrew quote of several paragraphs has its bar on the right; a list of numbers in it follows it', ls.quote === 'rtl,right,rtl,rtl', ls.quote);
+  check('rtl: a Hebrew callout is mirrored, title included', ls.note === 'rtl,right,rtl,10px,0px', ls.note);
+  check('rtl: an English callout is unchanged', ls.tip === 'ltr,left,0px,10px', ls.tip);
+  fs.rmSync(path.join(ROOT, 'tests/files/rtl-lists.md'));
 }
 
 // ---------------------------------------------------------------- pins, highlights, reading position
