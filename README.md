@@ -59,6 +59,19 @@ From the [latest release](../../releases/latest):
   - Uses the `git` you already have installed, only reads the repository, and loads only when first opened.
 - Copy button next to Find: **Copy path** copies the file's full path, and **Copy content** copies the raw
   Markdown source exactly as it is on disk, not the rendered page. Ctrl+Shift+C copies the path.
+- **Copy reference**, to point an AI agent (or a person) at an exact place: select text or right-click a
+  paragraph, heading, list item, table row or code line, and choose *Copy reference* (or press
+  Ctrl+Alt+C; ⌥⌘C on macOS; with nothing selected it takes the top of the window). It copies the file,
+  the lines in the file, the section and a quote:
+
+  ```text
+  docs/guide.md:42-45 (Install › Windows)
+  > Run the setup file. It installs for the current user only.
+  ```
+
+  The lines are those of the file on disk, also in the Formatted view and in CSV tables. The path is
+  relative to the Git repository for files tracked in one, and an earlier version from the file
+  history says which commit it is.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
 - Relative images and links resolve from the document's folder. Links to `.md` files (and to text, code and data files) open in Markly
   (Alt+← goes back), and web links open in your default browser (also with middle-click); hovering a link shows its
@@ -114,6 +127,7 @@ Ctrl (⌘[ and ⌘] also go back and forward).
 | Browse the folder | Ctrl+Shift+E, then ↑ ↓ to move, Enter to open, Backspace for the parent folder, type to jump, Esc to return |
 | See the file's Git history | Ctrl+Shift+H, then ↑ ↓ to pick a commit, Enter to view the file at it, Ctrl+click a second commit to compare, Esc to close |
 | Copy the file's path | Ctrl+Shift+C |
+| Copy a reference to the selection or a spot (file, lines and a quote, for an AI agent) | Ctrl+Alt+C, or right-click and choose *Copy reference* (with nothing selected, the shortcut takes the top of the window) |
 | Reload / close the window | F5 / Ctrl+W |
 | **Move around** | |
 | Find, then next / previous match | Ctrl+F, then Enter / Shift+Enter (or F3 / Shift+F3) |

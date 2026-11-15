@@ -79,9 +79,9 @@ export function mathPlugin(md) {
   md.inline.ruler.after('escape', 'math_inline', mathInline);
   md.block.ruler.after('blockquote', 'math_block', mathBlock, { alt: ['paragraph', 'reference', 'blockquote', 'list'] });
   md.renderer.rules.math_inline = (tokens, idx) => `<span class="math-inline" data-tex="${sources.push(tokens[idx].content) - 1}">${esc(tokens[idx].content)}</span>`;
-  md.renderer.rules.math_block = (tokens, idx) => mathBlockHtml(tokens[idx].content);
+  md.renderer.rules.math_block = (tokens, idx, opts, env, self) => mathBlockHtml(tokens[idx].content, self.renderAttrs(tokens[idx]));
 }
-export const mathBlockHtml = (tex) => `<div class="math-block" data-tex="${sources.push(tex) - 1}">${esc(tex)}</div>\n`;
+export const mathBlockHtml = (tex, attrs = '') => `<div class="math-block"${attrs} data-tex="${sources.push(tex) - 1}">${esc(tex)}</div>\n`;
 
 // Raw sources for math/diagrams collected while rendering, referenced by index from data-tex /
 // data-mmd placeholders (DOMPurify strips attribute values containing "-->", common in Mermaid).

@@ -50,6 +50,7 @@ await p.waitForSelector('#mk-welcome:not([hidden])');
 // shortcut labels (⌘ where Windows and Linux show Ctrl), as in the Mac app.
 const MAC = await p.evaluate(() => /^Mac/.test(navigator.platform) || /Mac OS X/.test(navigator.userAgent));
 console.log(`# ${BROWSER} ${b.version()}, ${MAC ? 'macOS' : 'Windows and Linux'} shortcut labels`);
+const REF_KEYS = MAC ? 'Meta+Alt+KeyC' : 'Control+Alt+KeyC'; // Copy reference
 check('welcome screen when no file', true);
 check('copy disabled without a file', await p.$eval('#btn-copy', (e) => e.disabled && getComputedStyle(e).pointerEvents === 'none'));
 await p.click('#btn-files');
@@ -142,7 +143,7 @@ check('alt+left goes back', true);
 check('copy enabled with a file', await p.$eval('#btn-copy', (e) => !e.disabled));
 check('copy button next to find', await p.$eval('#btn-find', (e) => e.nextElementSibling?.querySelector('#btn-copy') !== null));
 await p.click('#btn-copy');
-check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && [...e.querySelectorAll('.copy-item')].filter((i) => i.offsetParent).length === 2));
+check('copy menu opens', await p.$eval('#copy-menu', (e) => !e.hidden && [...e.querySelectorAll('.copy-item')].filter((i) => i.offsetParent).length === 3));
 check('copy menu shows path', (await p.$eval('#copy-path-sub', (e) => e.textContent)) === '/samples/showcase.md');
 await p.click('#copy-path');
 await sleep(100);
@@ -401,9 +402,16 @@ fs.rmSync(TMP, { recursive: true, force: true });
   check('esc returns to the current version', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('and private'));
   await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden]) .hs-item.sel'); await settled();
   await pickRow(2); await p.click('[data-act="view"]'); await p.waitForSelector('#mk-revbar'); await sleep(300);
+  const revShort = await p.$eval('#mk-revbar .hs-hash', (e) => e.textContent);
+  await p.keyboard.press(REF_KEYS); await sleep(250);
+  const refRev = (await clip()).split('\n')[0];
+  check('copy reference: an earlier version names its commit', refRev.startsWith('`docs/Guides ü/User guide.md:') && refRev.includes(`as of commit ${revShort}`), refRev);
   await p.click('#mk-revbar [data-act="current"]');
   await p.waitForFunction(() => !document.getElementById('mk-revbar'), null, { timeout: 5000 }).catch(() => {}); await sleep(100);
   check('return to current version button', !(await p.$('#mk-revbar')) && (await p.$eval('#mk-content', (e) => e.textContent)).includes('Shortcuts'));
+  await p.keyboard.press(REF_KEYS); await sleep(250);
+  const refCur = (await clip()).split('\n')[0];
+  check('copy reference: path relative to the Git repository, in backticks as it has spaces', /^`docs\/Guides ü\/User guide\.md:\d+(-\d+)?`/.test(refCur) && !refCur.includes('as of commit'), refCur);
   await p.click('#btn-history'); await p.waitForSelector('#mk-history:not([hidden])');
   await p.click('#btn-history');
   check('toolbar button closes history', await p.$eval('#mk-history', (e) => e.hidden));
@@ -570,18 +578,18 @@ fs.rmSync(TMP, { recursive: true, force: true });
     return m.hidden ? null : [...m.querySelectorAll('.ci-label')].map((e) => e.textContent);
   }, [sel, select]);
   const pick = async (i) => { await p.click(`#ctx-menu button[data-i="${i}"]`); await sleep(100); };
-  check('right-click selected text: copy, search, highlight, pin', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Search Google for “Web”', 'Highlight', 'Pin this spot']));
-  await pick(1);
+  check('right-click selected text: copy, copy reference, search, highlight, pin', JSON.stringify(await rightClick('#mk-content h1', true)) === JSON.stringify(['Copy', 'Copy reference', 'Search Google for “Web”', 'Highlight', 'Pin this spot']));
+  await pick(2);
   check('search opens Google with the selection (without the heading\'s #)', (await opened())[0] === 'https://www.google.com/search?q=Web' && await p.$eval('#ctx-menu', (e) => e.hidden));
   await rightClick('#mk-content h1', true); await pick(0);
   check('copy from the right-click menu', (await clip()) === 'Web');
-  check('right-click a selected URL: open instead of search', JSON.stringify(await rightClick('#mk-content p code .bare-url', true)) === JSON.stringify(['Copy', 'Open in browser', 'Highlight', 'Pin this spot']));
-  await pick(1);
+  check('right-click a selected URL: open instead of search', JSON.stringify(await rightClick('#mk-content p code .bare-url', true)) === JSON.stringify(['Copy', 'Copy reference', 'Open in browser', 'Highlight', 'Pin this spot']));
+  await pick(2);
   check('open selected URL', (await opened())[0] === 'https://example.net/inline');
-  check('right-click a link: open and copy address', JSON.stringify(await rightClick('#mk-content a[href^="https://example.com/a"]', false)) === JSON.stringify(['Open link in browser', 'Copy link address', 'Pin this spot']));
+  check('right-click a link: open and copy address', JSON.stringify(await rightClick('#mk-content a[href^="https://example.com/a"]', false)) === JSON.stringify(['Open link in browser', 'Copy link address', 'Copy reference', 'Pin this spot']));
   await pick(1);
   check('copy link address', (await clip()) === 'https://example.com/a?b=1&c=2');
-  check('right-click plain text without a selection: only pin', JSON.stringify(await rightClick('#mk-content h1', false)) === JSON.stringify(['Pin this spot']));
+  check('right-click plain text without a selection: copy reference and pin', JSON.stringify(await rightClick('#mk-content h1', false)) === JSON.stringify(['Copy reference', 'Pin this spot']));
   await p.keyboard.press('Escape');
   await rightClick('#mk-content pre .bare-url', false); await p.keyboard.press('Escape');
   check('Esc closes the right-click menu', await p.$eval('#ctx-menu', (e) => e.hidden));
@@ -693,6 +701,73 @@ fs.rmSync(TMP, { recursive: true, force: true });
   fs.rmSync(path.join(ROOT, 'tests/files/rtl-lists.md'));
 }
 
+// ---------------------------------------------------------------- copy reference
+{
+  const filler = Array.from({ length: 30 }, (_, i) => `Filler paragraph number ${i + 1} to make the page scroll.\n`).join('\n');
+  const SRC = '---\ntitle: Reference test\n---\n\n# Guide\n\n## Install\n\nRun the setup file. It installs\nfor the current user only, so there is\nno admin prompt.\n\nSecond paragraph here.\n\n' +
+    '- Tight item one\n- Tight item two\n\n1. A step with code:\n\n   ```js\n   const a = 1;\n   const b = 2;\n   ```\n\n| Name | Value |\n|------|-------|\n| alpha | 1 |\n| beta | 2 |\n\n' +
+    `## Use\n\n${filler}\n### Deep section\n\nDeep paragraph.\n\n${filler}`;
+  fs.writeFileSync(path.join(ROOT, 'tests/files/ref.md'), SRC);
+  const LINES = SRC.split('\n'), L = (t) => LINES.findIndex((l) => l.includes(t)) + 1;
+  const F = '/tests/files/ref.md';
+  await openDoc(F); await p.waitForSelector('body[data-ready="1"]'); await sleep(200);
+  const viaMenu = async (sel, pos) => {
+    await p.click(sel, { button: 'right', ...(pos ? { position: pos } : {}) });
+    const item = await p.$eval('#ctx-menu', (m) => [...m.querySelectorAll('button')].map((b) => b.textContent).find((t) => t.startsWith('Copy reference')) || '');
+    await p.click('#ctx-menu button:has-text("Copy reference")'); await sleep(200);
+    return { item, text: await clip() };
+  };
+  const select = (fn) => p.evaluate(fn);
+  const r1 = await viaMenu('#mk-content p:has-text("Run the setup file")');
+  check('copy reference: right-click menu item, with its shortcut', r1.item === `Copy reference${MAC ? '⌥⌘C' : 'Ctrl+Alt+C'}`, r1.item);
+  check('copy reference: a paragraph gives its lines, section and text', r1.text === `${F}:${L('Run the setup')}-${L('no admin prompt')} (Guide › Install)\n> Run the setup file. It installs\n> for the current user only, so there is\n> no admin prompt.`, JSON.stringify(r1.text));
+  check('copy reference: the line count includes front matter', L('Run the setup') === 9);
+  await select(() => { const t = [...document.querySelectorAll('#mk-content p')].find((x) => x.textContent.startsWith('Run the setup')).firstChild; const i = t.data.indexOf('current'); const r = document.createRange(); r.setStart(t, i); r.setEnd(t, i + 7); getSelection().removeAllRanges(); getSelection().addRange(r); });
+  await p.keyboard.press(REF_KEYS); await sleep(200);
+  check('copy reference: a word selected in a paragraph gives its own line (shortcut)', (await clip()) === `${F}:${L('for the current')} (Guide › Install)\n> current`, JSON.stringify(await clip()));
+  await select(() => { const ps = [...document.querySelectorAll('#mk-content p')]; const a = ps.find((x) => x.textContent.startsWith('Run the setup')).firstChild, b = ps.find((x) => x.textContent.startsWith('Second paragraph')).firstChild; const r = document.createRange(); r.setStart(a, 4); r.setEnd(b, 6); getSelection().removeAllRanges(); getSelection().addRange(r); });
+  await p.keyboard.press(REF_KEYS); await sleep(200);
+  const r3 = { text: await clip() };
+  check('copy reference: a selection across paragraphs gives the lines from its start to its end', r3.text.startsWith(`${F}:${L('Run the setup')}-${L('Second paragraph')} (Guide › Install)\n> the setup file`) && r3.text.endsWith('> Second'), JSON.stringify(r3.text));
+  await select(() => getSelection().removeAllRanges());
+  const cb = await p.evaluate(() => { const code = document.querySelector('#mk-content li code[data-code-line]'); const t = code.firstChild; const w = document.createTreeWalker(code, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode()) && !n.data.includes('b')); const i = n.data.indexOf('b ='); const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1); const b = r.getBoundingClientRect(); const box = code.closest('.code-block').getBoundingClientRect(); return { x: b.left + b.width / 2 - box.left, y: b.top + b.height / 2 - box.top }; });
+  const r4 = await viaMenu('#mk-content li .code-block', cb);
+  check('copy reference: a code line in a list item, quoted without its indentation', r4.text === `${F}:${L('const b')} (Guide › Install)\n\`\`\`js\nconst b = 2;\n\`\`\``, JSON.stringify(r4.text));
+  const r5 = await viaMenu('#mk-content table[data-line] tbody tr:nth-child(2) td');
+  check('copy reference: a table row', r5.text === `${F}:${L('| beta')} (Guide › Install)\n> beta | 2`, JSON.stringify(r5.text));
+  const r6 = await viaMenu('#mk-content li:has-text("Tight item two")');
+  check('copy reference: a list item', r6.text === `${F}:${L('Tight item two')} (Guide › Install)\n> Tight item two`, JSON.stringify(r6.text));
+  await p.evaluate(() => document.querySelector('#mk-content h3').scrollIntoView({ block: 'start' })); await sleep(150);
+  await p.keyboard.press(REF_KEYS); await sleep(200);
+  const top = `${F}:${L('### Deep section')} (Guide › Use)\n> Deep section`;
+  check('copy reference: with nothing selected, the spot at the top of the window', (await clip()) === top, JSON.stringify(await clip()));
+  check('copy reference: the message names what was copied', (await p.$eval('#mk-toast', (e) => e.textContent)) === `Copied reference · ${F}:${L('### Deep section')}`);
+  await p.click('#btn-copy'); await sleep(250);
+  const sub = await p.$eval('#copy-ref-sub', (e) => e.textContent);
+  await p.evaluate(() => navigator.clipboard.writeText('-'));
+  await p.click('#copy-ref'); await sleep(200);
+  check('copy reference: in the Copy menu, which shows what it will copy', sub === `${F}:${L('### Deep section')}` && (await clip()) === top, sub);
+  await p.evaluate(() => navigator.clipboard.writeText('-'));
+  await p.keyboard.press('Control+f'); await p.type('#find-input', 'x'); await p.keyboard.press(REF_KEYS); await sleep(200);
+  check('copy reference: the shortcut does nothing while typing in a field', (await clip()) === '-');
+  await p.keyboard.press('Escape');
+
+  // text, code and data files: one row per line
+  // these files are tracked in Markly's own repository, so in Git mode their path is relative to it
+  const rel = (t) => t.replace(/^\/tests\//, 'tests/');
+  const fileRef = async (f, sel) => { await openDoc('/tests/files/' + f); await p.waitForFunction(() => document.querySelector('#mk-content .vw'), null, { timeout: 8000 }); await sleep(150); return (await viaMenu(sel)).text; };
+  const py = fs.readFileSync(path.join(ROOT, 'tests/files/sample.py'), 'utf8').split('\n');
+  const pyRef = await fileRef('sample.py', '.vw-lines .vl:nth-child(5)');
+  check('copy reference: a line of a code file', rel(pyRef) === `tests/files/sample.py:5\n\`\`\`python\n${py[4]}\n\`\`\``, JSON.stringify(pyRef));
+  await select(() => { const rows = document.querySelectorAll('.vw-lines .vl'); const r = document.createRange(); const end = rows[7].querySelector('.vc'); r.setStart(rows[6].querySelector('.vc'), 0); r.setEnd(end, end.childNodes.length); getSelection().removeAllRanges(); getSelection().addRange(r); });
+  await p.keyboard.press(REF_KEYS); await sleep(200);
+  check('copy reference: lines selected in a code file, quoted whole', rel(await clip()) === `tests/files/sample.py:7-8\n\`\`\`python\n${py.slice(6, 8).join('\n')}\n\`\`\``, JSON.stringify(await clip()));
+  await select(() => getSelection().removeAllRanges());
+  check('copy reference: the Formatted view refers to the file’s own lines (minified JSON is all line 1)', rel(await fileRef('data.json', '.vw-lines .vl:nth-child(4)')).startsWith('tests/files/data.json:1\n```json\n  "zeta": 1,'));
+  check('copy reference: a CSV table row gives its line in the file', rel(await fileRef('data.csv', '.vw-table tbody tr:nth-child(2) td:nth-child(2)')) === 'tests/files/data.csv:3\n> Haifa | Israel | 290,306 | 63.7');
+  fs.rmSync(path.join(ROOT, 'tests/files/ref.md'));
+}
+
 // ---------------------------------------------------------------- pins, highlights, reading position
 {
   const F = '/tests/files/';
@@ -722,9 +797,9 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await p.evaluate(() => { for (const k of Object.keys(localStorage)) if (/^markly\.(marks\.|read$)/.test(k)) localStorage.removeItem(k); });
   await open('marks.md');
   check('pins & highlights code not loaded until used', await p.evaluate(() => !document.querySelector('link[href="marks.css"]') && !performance.getEntriesByType('resource').some((r) => /\/chunks\/marks-/.test(r.name))));
-  check('right-click a paragraph: pin this spot', JSON.stringify(await rightClick('#mk-content p', 'The server')) === JSON.stringify(['Copy', 'Search Google for “The server”', 'Highlight', 'Pin this spot']));
+  check('right-click a paragraph: pin this spot', JSON.stringify(await rightClick('#mk-content p', 'The server')) === JSON.stringify(['Copy', 'Copy reference', 'Search Google for “The server”', 'Highlight', 'Pin this spot']));
   await p.evaluate(() => getSelection().removeAllRanges());
-  check('right-click without a selection: only pin', JSON.stringify(await rightClick('#mk-content p:nth-of-type(2)')) === JSON.stringify(['Pin this spot']));
+  check('right-click without a selection: copy reference and pin', JSON.stringify(await rightClick('#mk-content p:nth-of-type(2)')) === JSON.stringify(['Copy reference', 'Pin this spot']));
   await pick('Pin this spot');
   let s = await state();
   check('pin marks the paragraph and lists it in the sidebar', s.pinned[0] === 'The server reads its settings from config.toml at startup.' && s.list === 'Pinned | The server reads its settings from config.toml at startup.', s.list);
