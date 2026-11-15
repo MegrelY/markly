@@ -1,7 +1,7 @@
 import './compat.js';
 import { host } from './host.js';
 import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls, textDirs, textDir } from './render.js';
-import { resolvePath, splitHash, basename, dirname } from './path.js';
+import { resolvePath, splitHash, basename, dirname, isAbsolute } from './path.js';
 import { fileType, isMarkdownPath, isViewable } from './filetypes.js';
 
 const $ = (id) => document.getElementById(id);
@@ -289,7 +289,10 @@ $('copy-ref').onclick = () => copyReference({ range: copyMenuRange });
 let refP = null, refMod = null;
 function refs() {
   refP ||= import('./ref.js').then((m) => {
-    m.init({ content, scroller, getCurrent: () => current, getGit: () => gitInfo, formattedText: () => viewerMod?.formattedText() ?? null });
+    m.init({
+      content, scroller, toast, getCurrent: () => current, getGit: () => gitInfo, formattedText: () => viewerMod?.formattedText() ?? null,
+      openFile, closeFind, focusContent: () => scroller.focus({ preventScroll: true }), resolvePath, isAbsolute, dirname,
+    });
     refMod = m;
     return m;
   });
@@ -764,6 +767,7 @@ scroller.addEventListener('scroll', () => { ctxMenu.hidden = true; }, { passive:
 const findState = { open: false, query: '', ranges: [], idx: -1 };
 const hasHighlights = typeof CSS !== 'undefined' && 'highlights' in CSS;
 function openFind() {
+  refMod?.closeGoTo();
   const bar = $('mk-findbar');
   bar.hidden = false; findState.open = true;
   const sel = getSelection()?.toString().trim();
@@ -857,6 +861,8 @@ document.addEventListener('keydown', (e) => {
   else if (mod && e.shiftKey && !e.altKey && k === 'e') toggleFiles(undefined, { focus: true });
   else if (mod && e.shiftKey && !e.altKey && k === 'h') toggleHistory();
   else if (mod && k === 'f') openFind();
+  // Go to a line or a reference (Ctrl+G; Control-G on macOS, where ⌘G finds the next match)
+  else if (e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && k === 'g') refs().then((m) => m.openGoTo());
   else if (mod && k === 'p') window.print();
   else if (mod && (k === '=' || k === '+' || e.code === 'NumpadAdd')) stepZoom(1);
   else if (mod && (k === '-' || k === '_' || e.code === 'NumpadSubtract')) stepZoom(-1);
@@ -874,7 +880,7 @@ document.addEventListener('keydown', (e) => {
   else if (IS_MAC && e.metaKey && e.key === ']') goForward();
   else if (e.key === 'BrowserBack') goBack();
   else if (e.key === 'BrowserForward') goForward();
-  else if (e.key === 'Escape') { if (!ctxMenu.hidden) closeMenus(); else if (findState.open) closeFind(); else if (current?.revision && $('copy-menu').hidden && $('recent-menu').hidden) openFile(current.path, { history: false }); else closeMenus(); }
+  else if (e.key === 'Escape') { if (!ctxMenu.hidden) closeMenus(); else if (refMod?.goToOpen()) refMod.closeGoTo(true); else if (findState.open) closeFind(); else if (current?.revision && $('copy-menu').hidden && $('recent-menu').hidden) openFile(current.path, { history: false }); else closeMenus(); }
   else handled = false;
   if (handled) e.preventDefault();
 });

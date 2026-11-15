@@ -72,6 +72,12 @@ From the [latest release](../../releases/latest):
   The lines are those of the file on disk, also in the Formatted view and in CSV tables. The path is
   relative to the Git repository for files tracked in one, and an earlier version from the file
   history says which commit it is.
+- **Go to** (Ctrl+G; ⌃G on macOS), the way back: type a line number, or paste a reference from an
+  agent's answer, a terminal or a pull request (`docs/guide.md:42-45`, `@docs/guide.md`,
+  `guide.md#L42`, a GitHub link to the file, or a whole reference copied with *Copy reference*).
+  Markly opens the file (paths are tried from the Git repository's top, then from the open file's
+  folder and the folders above it), scrolls to the lines and lights them up for a moment. Alt+← goes
+  back.
 - Opens files from the command line, by double-click or *Open with*, by drag and drop, or with Ctrl+O (⌘O on macOS). Keeps a list of recent files.
 - Relative images and links resolve from the document's folder. Links to `.md` files (and to text, code and data files) open in Markly
   (Alt+← goes back), and web links open in your default browser (also with middle-click); hovering a link shows its
@@ -131,6 +137,7 @@ Ctrl (⌘[ and ⌘] also go back and forward).
 | Reload / close the window | F5 / Ctrl+W |
 | **Move around** | |
 | Find, then next / previous match | Ctrl+F, then Enter / Shift+Enter (or F3 / Shift+F3) |
+| Go to a line, or to a reference such as `docs/guide.md:42` (pasted from an agent) | Ctrl+G (⌃G on macOS) |
 | Show or hide the contents | Ctrl+\ |
 | Go to the top / end | Home / End |
 | Go back / forward between linked files | Alt+← / Alt+→, or the mouse's back and forward buttons |

@@ -178,6 +178,18 @@ html.no-doc #btn-toc, html.no-doc #btn-find, html.no-doc #btn-copy, html.no-doc 
   background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
 }
 #mk-findbar[hidden] { display: none; }
+/* Go to a line or reference (Ctrl+G, ref.js), in the same place as Find */
+#mk-gotobar {
+  position: absolute; top: calc(var(--bar-h) + 8px); right: 18px; z-index: 15;
+  display: flex; align-items: center; gap: 2px; padding: 5px 5px 5px 10px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+}
+#mk-gotobar[hidden] { display: none; }
+#goto-input { width: 320px; max-width: calc(100vw - 110px); border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; padding: 4px 2px; }
+/* the lines gone to light up for a moment */
+.ref-flash { animation: ref-flash 2.6s ease-out; border-radius: 4px; }
+@keyframes ref-flash { 0%, 40% { background-color: rgba(20, 184, 166, .22); box-shadow: 0 0 0 4px rgba(20, 184, 166, .22); } 100% { background-color: transparent; box-shadow: 0 0 0 4px transparent; } }
+::highlight(mk-goto) { background-color: rgba(20, 184, 166, .3); }
 #find-input { width: 220px; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; padding: 4px 2px; }
 #find-count { font-size: 12px; color: var(--faint); min-width: 64px; text-align: right; padding-right: 6px; font-variant-numeric: tabular-nums; }
 ::highlight(mk-find) { background-color: rgba(250, 204, 21, 0.42); }
@@ -460,7 +472,7 @@ kbd {
     --note: #0969da; --tip: #1a7f37; --important: #8250df; --warning: #9a6700; --caution: #d1242f; color-scheme: light;
   }
   html, body { height: auto; overflow: visible; display: block; background: #fff; }
-  #mk-bar, #mk-toc, #mk-findbar, #mk-drop, #mk-toast, #mk-welcome, .code-copy, .heading-anchor { display: none !important; }
+  #mk-bar, #mk-toc, #mk-findbar, #mk-gotobar, #mk-drop, #mk-toast, #mk-welcome, .code-copy, .heading-anchor { display: none !important; }
   #mk-layout, #mk-scroller { display: block; overflow: visible; height: auto; }
   .markdown-body { max-width: none; padding: 0; font-size: 10.5pt; }
   .code-block, .table-wrap, .mermaid-block, .markdown-alert, img { break-inside: avoid; }

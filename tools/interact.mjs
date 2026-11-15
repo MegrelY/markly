@@ -765,6 +765,38 @@ fs.rmSync(TMP, { recursive: true, force: true });
   await select(() => getSelection().removeAllRanges());
   check('copy reference: the Formatted view refers to the file’s own lines (minified JSON is all line 1)', rel(await fileRef('data.json', '.vw-lines .vl:nth-child(4)')).startsWith('tests/files/data.json:1\n```json\n  "zeta": 1,'));
   check('copy reference: a CSV table row gives its line in the file', rel(await fileRef('data.csv', '.vw-table tbody tr:nth-child(2) td:nth-child(2)')) === 'tests/files/data.csv:3\n> Haifa | Israel | 290,306 | 63.7');
+
+  // Go to (Ctrl+G): a line, or a reference pasted from an agent's answer
+  const goTo = async (text, { paste = false } = {}) => {
+    await p.keyboard.press('Control+KeyG'); await p.waitForSelector('#goto-input', { state: 'visible' });
+    if (paste) await p.evaluate((t) => { const i = document.getElementById('goto-input'); i.value = ''; const dt = new DataTransfer(); dt.setData('text/plain', t); i.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }, text);
+    else await p.fill('#goto-input', text);
+    const typed = await p.$eval('#goto-input', (i) => i.value);
+    await p.keyboard.press('Enter'); await sleep(450);
+    return { typed, ...(await p.evaluate(() => {
+      const sc = document.getElementById('mk-scroller').getBoundingClientRect().top;
+      const lit = [...document.querySelectorAll('.ref-flash')];
+      const hl = typeof CSS !== 'undefined' && CSS.highlights?.get('mk-goto');
+      return { title: document.title, open: !document.getElementById('mk-gotobar').hidden, lit: lit.map((e) => e.dataset.line || e.textContent.trim().slice(0, 30)),
+        litTop: lit[0] ? lit[0].getBoundingClientRect().top - sc : null, hl: hl ? [...hl].map((r) => r.toString()) : null, toast: document.getElementById('mk-toast').textContent };
+    })) };
+  };
+  await openDoc(F); await p.waitForSelector('body[data-ready="1"]'); await sleep(200);
+  const g1 = await goTo(String(L('### Deep section')));
+  check('go to: Ctrl+G and a line number scroll to it and light it up', g1.lit.join() === String(L('### Deep section')) && g1.litTop > 0 && g1.litTop < 250 && !g1.open, JSON.stringify(g1));
+  const g2 = await goTo(r4.text, { paste: true });
+  check('go to: a whole copied reference, pasted, keeps its first line', g2.typed === `${F}:${L('const b')} (Guide › Install)`, g2.typed);
+  check('go to: a code line lights up just that line', g2.hl ? g2.hl.join() === 'const b = 2;' : g2.lit.length === 1, JSON.stringify(g2));
+  const g3 = await goTo('@sample.py:7');
+  check('go to: another file, relative to the open one (an @mention), at its line', g3.title === 'sample.py — Markly' && g3.lit.length === 1 && g3.lit[0].includes('name: str'), JSON.stringify(g3));
+  await p.keyboard.press('Alt+ArrowLeft'); await p.waitForFunction(() => document.title.startsWith('ref.md'), null, { timeout: 5000 });
+  check('go to: Alt+← goes back to where you were', true);
+  const g4 = await goTo('https://github.com/MegrelY/markly/blob/main/tests/files/data.csv#L3');
+  check('go to: a GitHub link opens the local file (from a folder above), at its line', g4.title === 'data.csv — Markly' && g4.lit.join() === '3', JSON.stringify(g4));
+  const g5 = await goTo('nope/missing.md:4');
+  check('go to: a file that isn’t there says so, and the box stays open', g5.toast === 'Couldn’t find nope/missing.md'.replace('’', "'") && g5.open, JSON.stringify(g5));
+  await p.keyboard.press('Escape');
+  check('go to: Esc closes the box', await p.$eval('#mk-gotobar', (e) => e.hidden));
   fs.rmSync(path.join(ROOT, 'tests/files/ref.md'));
 }
 

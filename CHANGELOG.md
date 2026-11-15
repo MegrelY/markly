@@ -12,6 +12,14 @@
   lines too, also in the Formatted view (where the rows aren't the file's lines) and in CSV tables
   (where a quoted cell can span lines). The path is relative to the Git repository for files tracked
   in one, and an earlier version from the file history names its commit.
+- **Go to** (Ctrl+G; ⌃G on macOS, as ⌘G finds the next match there): the way back from an agent's
+  answer. Type a line number, or paste a reference: `docs/guide.md:42-45`, `docs/guide.md:42:7`,
+  `@docs/guide.md`, `guide.md#L42-L45`, a GitHub or GitLab link to the file, or a whole reference
+  copied with *Copy reference* (its first line is used). Markly opens the file if it isn't the open
+  one, trying the path from the top of the Git repository, then from the open file's folder and the
+  folders above it, scrolls to the lines and lights them up for a moment (a single code line on its
+  own where the browser engine can). Alt+← goes back. In the Formatted view, the file's lines are
+  found among the formatted rows.
 
 ## 1.7.0 — 2026-11-15
 
