@@ -1,6 +1,6 @@
 import './compat.js';
 import { host } from './host.js';
-import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls } from './render.js';
+import { renderMarkdown, renderMermaid, renderMath, attachSources, highlightCode, sanitizePreview, linkifyUrls, textDirs, textDir } from './render.js';
 import { resolvePath, splitHash, basename, dirname } from './path.js';
 import { fileType, isMarkdownPath, isViewable } from './filetypes.js';
 
@@ -280,7 +280,7 @@ let viewerP = null, viewerMod = null;
 function loadViewer() {
   viewerP ||= import('./viewer.js').then(async (m) => {
     await m.init({
-      LS, highlightCode, sanitizePreview, linkifyUrls, assetUrl: host.assetUrl,
+      LS, highlightCode, sanitizePreview, linkifyUrls, textDirs, assetUrl: host.assetUrl,
       changed: () => { if (findState.open && findState.query) runFind(findState.query, false); marksMod?.refresh(); },
     });
     viewerMod = m;
@@ -508,9 +508,29 @@ async function openFile(path, opts = {}) {
   return true;
 }
 
+// Right-to-left text. A block of text takes the direction of its own first letter (dir="auto"). A list,
+// list item, quote or callout takes that of the first letter of all the text in it: with dir="auto"
+// it would skip the paragraphs inside it (they have a dir of their own), so a Hebrew list with blank
+// lines between its items, or a Hebrew quote of several paragraphs, kept its numbers or its bar on
+// the left. Code, math and diagrams don't count, nor does a callout's title ("Note"), which follows
+// its callout. One with no letters at all follows the block it is in.
+const TEXT_BLOCKS = 'p:not(.markdown-alert-title),h1,h2,h3,h4,h5,h6,td,th,table,dt,summary,figcaption';
+const CONTAINERS = 'li,ul,ol,dd,blockquote,.markdown-alert';
+const NOT_TEXT = 'pre,.code-block,[data-tex],.katex,.mermaid-block,svg,.markdown-alert-title';
+function firstLetterDir(root) {
+  const walk = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.nodeType === 3 ? NodeFilter.FILTER_ACCEPT : n.matches(NOT_TEXT) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_SKIP),
+  });
+  for (let n; (n = walk.nextNode());) { const d = textDir(n.data); if (d) return d; }
+  return '';
+}
+
 function postProcess() {
-  content.querySelectorAll('p,li,ul,ol,h1,h2,h3,h4,h5,h6,blockquote,td,th,table,dt,dd,summary,figcaption')
-    .forEach((el) => { if (!el.hasAttribute('dir')) el.setAttribute('dir', 'auto'); });
+  content.querySelectorAll(CONTAINERS).forEach((el) => {
+    const d = !el.hasAttribute('dir') && firstLetterDir(el);
+    if (d) el.setAttribute('dir', d);
+  });
+  content.querySelectorAll(TEXT_BLOCKS).forEach((el) => { if (!el.hasAttribute('dir')) el.setAttribute('dir', 'auto'); });
   // The tooltip always shows where a link really goes (its text can say anything), after the
   // author's own title when there is one.
   content.querySelectorAll('a[href]').forEach((a) => {

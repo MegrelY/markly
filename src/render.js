@@ -49,6 +49,36 @@ export function linkifyUrls(html) {
   });
 }
 
+// --- Right-to-left text (Hebrew, Arabic, …) in code blocks and plain text files ---
+// Each line takes the direction of its first letter, as a paragraph with dir="auto" does. A line with
+// no letters (blank, numbers, symbols, emoji) follows its block, which takes the direction most of its
+// lines have (on a tie, that of the first line with letters).
+const RTL_CHARS = /[\u0590-\u08FF\u200F\uFB1D-\uFDFF\uFE70-\uFEFE\u{10800}-\u{10FFF}\u{1E800}-\u{1EFFF}]/u;
+const FIRST_STRONG = /[\p{L}\u200E\u200F]/u; // letters, plus the LRM and RLM marks
+/** 'rtl' or 'ltr' by the first letter of `s`, or '' when it has none. */
+export const textDir = (s) => { const m = FIRST_STRONG.exec(s); return m ? (RTL_CHARS.test(m[0]) ? 'rtl' : 'ltr') : ''; };
+/** The direction of `text` as a block and of each of its lines (`text.split('\n')`), or null when
+ *  it has no right-to-left letters at all (then all of it is left-to-right). */
+export function textDirs(text) {
+  if (!RTL_CHARS.test(text)) return null;
+  const own = text.split('\n').map(textDir);
+  let n = 0;
+  for (const d of own) n += d === 'rtl' ? 1 : d === 'ltr' ? -1 : 0;
+  const block = n > 0 || (n === 0 && own.find(Boolean) === 'rtl') ? 'rtl' : 'ltr';
+  return { block, lines: own.map((d) => d || block) };
+}
+/** A code block shown as plain text (no highlighting): its direction and its HTML. A line that runs
+ *  the other way from the block is a `.code-line` box, aligned to its own start (style.css). */
+function plainCode(code) {
+  const d = textDirs(code);
+  if (!d) return { dir: 'ltr', html: linkifyUrls(esc(code)) };
+  const html = code.split('\n').map((line, i) => {
+    const h = linkifyUrls(esc(line)); // a URL never spans lines
+    return d.lines[i] === d.block ? h : `<span class="code-line" dir="${d.lines[i]}">${h}</span>`;
+  }).join('\n');
+  return { dir: d.block, html };
+}
+
 function slugify(s) {
   return String(s).trim().toLowerCase()
     .replace(/[^\p{L}\p{N}\p{M}\s_-]/gu, '')
@@ -97,6 +127,9 @@ md.renderer.rules.table_open = () => '<div class="table-bleed"><div class="table
 md.renderer.rules.table_close = () => '</table></div></div>\n';
 
 // --- Code fences: highlight.js, copy button, mermaid placeholder, ```math ---
+// Highlighted code is always left-to-right, even in a right-to-left list item or quote. A block shown
+// as plain text (no language, `text`, or one without a grammar) runs the way its lines do, and the
+// whole block follows, its header included.
 md.renderer.rules.fence = (tokens, idx) => {
   const t = tokens[idx];
   const info = t.info ? md.utils.unescapeAll(t.info).trim() : '';
@@ -108,18 +141,20 @@ md.renderer.rules.fence = (tokens, idx) => {
   }
   if (lang === 'math' || lang === 'katex') return mathBlockHtml(code);
   const l = ALIAS[lang] || lang;
-  let html;
-  if (l && hljs && hljs.getLanguage(l)) {
+  let html, dir = 'ltr';
+  if (l && HL_NAMES[l] !== 'plaintext' && hljs && hljs.getLanguage(l)) {
     try { html = hljs.highlight(code, { language: l, ignoreIllegals: true }).value; } catch { html = esc(code); }
-  } else html = esc(code);
-  html = linkifyUrls(html);
+    html = linkifyUrls(html);
+  } else ({ html, dir } = plainCode(code));
   const label = lang || 'text';
-  return `<div class="code-block"><div class="code-head"><span class="code-lang">${esc(label)}</span>` +
+  return `<div class="code-block" dir="${dir}"><div class="code-head"><span class="code-lang">${esc(label)}</span>` +
     `<button class="code-copy" type="button" aria-label="Copy code">Copy</button></div>` +
     `<pre><code class="hljs${l ? ' language-' + esc(l) : ''}">${html}</code></pre></div>\n`;
 };
-md.renderer.rules.code_block = (tokens, idx, opts, env, self) =>
-  `<pre${self.renderAttrs(tokens[idx])}><code>${linkifyUrls(esc(tokens[idx].content))}</code></pre>\n`;
+md.renderer.rules.code_block = (tokens, idx, opts, env, self) => {
+  const { dir, html } = plainCode(tokens[idx].content);
+  return `<pre${self.renderAttrs(tokens[idx])} dir="${dir}"><code>${html}</code></pre>\n`;
+};
 md.renderer.rules.code_inline = (tokens, idx, opts, env, self) =>
   `<code${self.renderAttrs(tokens[idx])}>${linkifyUrls(esc(tokens[idx].content))}</code>`;
 

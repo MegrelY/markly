@@ -9,8 +9,17 @@
   that already fit, and tables inside lists, quotes and callouts, are unchanged. *Wide page* widens
   the whole column (up to about 1,400px), in Markdown and plain text files. Printing is unchanged.
 - macOS: Markly is offered under *Open With* for `.env` files too, as on Windows.
+- Right-to-left text in code blocks and text files. A code block without highlighting (no language,
+  or `text`) that is written in Hebrew or Arabic now reads right to left, its header included, and so
+  do the Hebrew and Arabic lines of plain text files. Each line follows its own first letter, so an
+  English line or a URL inside a Hebrew block stays left to right, and a line with no letters follows
+  the block. Long lines still scroll sideways, in either direction. Highlighted code always stays left
+  to right, now also inside a right-to-left list item, where it used to be laid out right to left.
 
 ### Fixed
+- Hebrew and Arabic lists with blank lines between their items, quotes of more than one paragraph,
+  and callouts (`> [!NOTE]` and friends) kept their numbers, bullets or bar on the left, though their
+  text was right-aligned. They now take the direction of their text, and a callout's title follows it.
 - macOS: *Print / Save as PDF* (and ⌘P) did nothing. The web view needs a permission to print
   there that Windows and Linux don't.
 - macOS: on a Mac without the Command Line Tools, opening a file in a Git repository could make

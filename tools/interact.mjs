@@ -600,6 +600,99 @@ fs.rmSync(TMP, { recursive: true, force: true });
   check('html source: URLs in attributes open on Ctrl+click', (await opened())[0] === 'https://example.com');
 }
 
+// ---------------------------------------------------------------- right-to-left code blocks and text files
+{
+  const HE = 'סיור אחד לכל שלבי המכירה.\nבמשרד המכירות: על מסך או טאבלט, במקום להסביר תוכנית.\n2026\n\nבאתר אפשר להתנסות בסיור בדירה לדוגמה, ללא הרשמה:\n' +
+    'https://example.com/3d-tours/he?utm_source=linkedin&utm_medium=social&utm_campaign=he-launch-november-2026-with-a-long-campaign-name\n';
+  const LONG_HE = 'שורה בעברית ארוכה מאוד שממשיכה וממשיכה הרבה מעבר לרוחב התיבה, כדי לבדוק שאפשר לגלול אליה עד הסוף ולקרוא את כולה בלי שום בעיה ובלי שחלק ממנה ייחתך.';
+  fs.writeFileSync(path.join(ROOT, 'tests/files/rtl.md'), `# RTL\n\n\`\`\`\n${HE}\`\`\`\n\n\`\`\`text\nHello world, in English.\n${LONG_HE}\nSecond English line.\n\`\`\`\n\n` +
+    '```\nJust English.\n```\n\nIndented:\n\n    שורה מוזחת בעברית.\n    עוד שורה.\n\n1. פריט ברשימה עם קוד:\n   ```python\n   print("שלום")\n   ```\n');
+  await openDoc('/tests/files/rtl.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
+  const r = await p.evaluate(() => {
+    const blocks = [...document.querySelectorAll('#mk-content .code-block')];
+    const box = (el) => el.getBoundingClientRect();
+    const info = (b) => ({ dir: b.getAttribute('dir'), css: getComputedStyle(b.querySelector('pre')).direction, lines: [...b.querySelectorAll('.code-line')].map((l) => l.getAttribute('dir')) });
+    const [he, mixed, en, py] = blocks;
+    // the first line of the Hebrew block ends at the right edge of the text area
+    const pre = he.querySelector('pre'), cs = getComputedStyle(pre), t = pre.querySelector('code').firstChild;
+    const rg = document.createRange(); rg.setStart(t, 0); rg.setEnd(t, t.data.indexOf('\n'));
+    const firstRight = box(pre).right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight) - box(rg).right;
+    // the long URL (left-to-right) in the right-to-left block can be scrolled to its start
+    pre.scrollLeft = -1e6;
+    const urlStart = box(he.querySelector('.code-line')).left - box(pre).left;
+    pre.scrollLeft = 0;
+    // the long Hebrew line in the left-to-right block can be scrolled to its start (on the right)
+    const mpre = mixed.querySelector('pre'); mpre.scrollLeft = 1e6;
+    const heStart = box(mpre).right - box(mixed.querySelector('.code-line')).right;
+    mpre.scrollLeft = 0;
+    const head = he.querySelector('.code-head');
+    return {
+      he: info(he), mixed: info(mixed), en: info(en), py: info(py), firstRight, urlStart, heStart,
+      scrolls: pre.scrollWidth > pre.clientWidth && mpre.scrollWidth > mpre.clientWidth,
+      headMirrored: box(head.querySelector('.code-copy')).right < box(head.querySelector('.code-lang')).left,
+      li: getComputedStyle(document.querySelector('#mk-content li')).direction,
+      indented: [document.querySelector('#mk-content > pre')?.getAttribute('dir'), getComputedStyle(document.querySelector('#mk-content > pre')).direction].join(),
+    };
+  });
+  check('rtl: a Hebrew text block runs right to left, header mirrored', r.he.dir === 'rtl' && r.he.css === 'rtl' && r.headMirrored, JSON.stringify(r.he));
+  check('rtl: its lines end at the right edge', Math.abs(r.firstRight) < 2, String(r.firstRight));
+  check('rtl: a line with no letters follows the block; only the URL line runs left to right', JSON.stringify(r.he.lines) === '["ltr"]');
+  check('rtl: a long left-to-right line in it scrolls to its start', r.scrolls && r.urlStart >= 0, String(r.urlStart));
+  check('rtl: a mostly English text block stays left to right, its Hebrew line right to left', r.mixed.dir === 'ltr' && JSON.stringify(r.mixed.lines) === '["rtl"]', JSON.stringify(r.mixed));
+  check('rtl: a long right-to-left line in it scrolls to its start', r.heStart >= 0, String(r.heStart));
+  check('rtl: an English text block is unchanged', r.en.dir === 'ltr' && r.en.css === 'ltr' && !r.en.lines.length);
+  check('rtl: an indented Hebrew code block runs right to left', r.indented === 'rtl,rtl', r.indented);
+  check('rtl: highlighted code in a Hebrew list item stays left to right', r.li === 'rtl' && r.py.dir === 'ltr' && r.py.css === 'ltr' && !r.py.lines.length, JSON.stringify([r.li, r.py]));
+  await p.click('#mk-content .code-block .code-copy');
+  await sleep(100);
+  check('rtl: Copy copies the block exactly as written', (await clip()) === HE);
+
+  fs.writeFileSync(path.join(ROOT, 'tests/files/rtl.txt'), 'שלום עולם, זו שורה בעברית.\nThis line is in English.\n2026\nועוד שורה.\n');
+  await openDoc('/tests/files/rtl.txt'); await p.waitForFunction(() => document.querySelector('#mk-content .vw .vc'), null, { timeout: 8000 }); await sleep(150);
+  const tx = await p.evaluate(() => {
+    const vc = [...document.querySelectorAll('.vw-lines .vc')];
+    const rg = document.createRange(); rg.selectNodeContents(vc[0]);
+    return { dirs: vc.map((e) => e.getAttribute('dir') || ''), gap: vc[0].getBoundingClientRect().right - rg.getBoundingClientRect().right, text: document.querySelector('.vw-body').innerText };
+  });
+  check('rtl: Hebrew lines of a text file run right to left, English lines left to right', JSON.stringify(tx.dirs) === '["rtl","","rtl","rtl"]' && tx.gap >= 0 && tx.gap < 4, JSON.stringify(tx.dirs) + ' ' + tx.gap);
+  check('rtl: text file text unchanged', tx.text.startsWith('שלום עולם, זו שורה בעברית.\nThis line is in English.\n2026\n'));
+  fs.rmSync(path.join(ROOT, 'tests/files/rtl.md')); fs.rmSync(path.join(ROOT, 'tests/files/rtl.txt'));
+
+  // lists, quotes and callouts whose text is in paragraphs of their own
+  fs.writeFileSync(path.join(ROOT, 'tests/files/rtl-lists.md'), '# Lists\n\n' +
+    '1. פריט ראשון\n\n2. פריט שני\n\n   - תת פריט\n\n<!-- -->\n\n' +            // loose, with a loose nested list
+    '- פריט צמוד\n- עוד פריט\n\n<!-- -->\n\n' +                              // tight
+    '1. First item\n\n2. Second item\n\n<!-- -->\n\n' +                       // loose English
+    '- ```\n  TEXT label must not count\n  ```\n\n  פריט שמתחיל בבלוק קוד\n\n<!-- -->\n\n' +
+    '> פסקה ראשונה בציטוט.\n>\n> פסקה שנייה.\n>\n> 1. 2026\n>\n> 2. 2027\n\n' +
+    '> [!NOTE]\n> הערה בעברית.\n\n> [!TIP]\n> An English tip.\n');
+  await openDoc('/tests/files/rtl-lists.md'); await p.waitForSelector('body[data-ready="1"]'); await sleep(150);
+  const ls = await p.evaluate(() => {
+    const c = document.getElementById('mk-content'), dir = (el) => (el ? getComputedStyle(el).direction : 'none');
+    const lists = [...c.querySelectorAll(':scope > ol, :scope > ul')];
+    const [quote] = c.querySelectorAll(':scope > blockquote');
+    const [note, tip] = c.querySelectorAll('.markdown-alert');
+    const bar = (el) => (parseFloat(getComputedStyle(el).borderRightWidth) > 0 ? 'right' : parseFloat(getComputedStyle(el).borderLeftWidth) > 0 ? 'left' : 'none');
+    return {
+      loose: [dir(lists[0]), ...[...lists[0].children].map(dir), dir(lists[0].querySelector('ul')), dir(lists[0].querySelector('ul li'))].join(),
+      tight: [dir(lists[1]), ...[...lists[1].children].map(dir)].join(),
+      english: [dir(lists[2]), ...[...lists[2].children].map(dir)].join(),
+      codeFirst: [dir(lists[3].querySelector('li')), lists[3].querySelector('.code-block').getAttribute('dir')].join(),
+      quote: [dir(quote), bar(quote), dir(quote.querySelector('ol')), dir(quote.querySelector('ol li'))].join(),
+      note: [dir(note), bar(note), dir(note.querySelector('.markdown-alert-title')), getComputedStyle(note).borderTopLeftRadius, getComputedStyle(note).borderTopRightRadius].join(),
+      tip: [dir(tip), bar(tip), getComputedStyle(tip).borderTopLeftRadius, getComputedStyle(tip).borderTopRightRadius].join(),
+    };
+  });
+  check('rtl: a Hebrew list with blank lines between items runs right to left, nested list too', ls.loose === 'rtl,rtl,rtl,rtl,rtl', ls.loose);
+  check('rtl: a tight Hebrew list still runs right to left', ls.tight === 'rtl,rtl,rtl', ls.tight);
+  check('rtl: an English list with blank lines stays left to right', ls.english === 'ltr,ltr,ltr', ls.english);
+  check('rtl: a list item that starts with a code block takes its direction from its text', ls.codeFirst === 'rtl,ltr', ls.codeFirst);
+  check('rtl: a Hebrew quote of several paragraphs has its bar on the right; a list of numbers in it follows it', ls.quote === 'rtl,right,rtl,rtl', ls.quote);
+  check('rtl: a Hebrew callout is mirrored, title included', ls.note === 'rtl,right,rtl,10px,0px', ls.note);
+  check('rtl: an English callout is unchanged', ls.tip === 'ltr,left,0px,10px', ls.tip);
+  fs.rmSync(path.join(ROOT, 'tests/files/rtl-lists.md'));
+}
+
 // ---------------------------------------------------------------- pins, highlights, reading position
 {
   const F = '/tests/files/';
