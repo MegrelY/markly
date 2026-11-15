@@ -32,6 +32,7 @@ const UNSAFE_EXT = new RegExp('\\.(' + [
 const IS_MAC = /^Mac/.test(navigator.platform || '') || /Mac OS X/.test(navigator.userAgent);
 const THEME_KEY = IS_MAC ? '⇧⌘L' : 'Ctrl+Shift+L';
 const COPY_PATH_KEY = IS_MAC ? '⇧⌘C' : 'Ctrl+Shift+C';
+const COPY_REF_KEY = IS_MAC ? '⌥⌘C' : 'Ctrl+Alt+C';
 const FILES_KEY = IS_MAC ? '⇧⌘E' : 'Ctrl+Shift+E';
 const HISTORY_KEY = IS_MAC ? '⇧⌘H' : 'Ctrl+Shift+H';
 if (IS_MAC) {
@@ -219,6 +220,8 @@ function closeMenus() {
 const copyBtn = $('btn-copy');
 const copyMenu = $('copy-menu');
 $('copy-path-key').textContent = COPY_PATH_KEY;
+$('copy-ref-key').textContent = COPY_REF_KEY;
+let copyMenuRange = null; // the selection when the menu opened (clicking the menu may clear it)
 function countLines(text) {
   if (!text) return 0;
   let n = 1;
@@ -231,6 +234,9 @@ function toggleCopyMenu() {
   if (!open) return;
   const lines = countLines(current.content);
   $('copy-path-sub').textContent = current.path;
+  copyMenuRange = selectionRange();
+  $('copy-ref-sub').textContent = copyMenuRange ? 'The selected text, with its lines' : 'The top of the window, with its lines';
+  refs().then((m) => { const r = !copyMenu.hidden && m.reference({ range: copyMenuRange }); if (r) $('copy-ref-sub').textContent = r.label; });
   const what = current.view ? `${current.view.label} file` : 'Markdown source';
   $('copy-content-sub').textContent = `${what} · ${lines.toLocaleString()} ${lines === 1 ? 'line' : 'lines'}`;
   const fmt = current.view && viewerMod?.formattedText();
@@ -274,6 +280,37 @@ copyBtn.onclick = (e) => { e.stopPropagation(); toggleCopyMenu(); };
 $('copy-path').onclick = () => copyFromDoc('path');
 $('copy-content').onclick = () => copyFromDoc('content');
 $('copy-formatted').onclick = () => copyFromDoc('formatted');
+$('copy-ref').onclick = () => copyReference({ range: copyMenuRange });
+
+// ---------------------------------------------------------------- copy reference (lazy)
+// The file, the lines and a quote of the selection or a spot, to point an agent at it (ref.js).
+// It is loaded ahead (a little after a document is shown, or when a menu opens), so the copy happens
+// right in the click or key press: WebKit only lets a page write to the clipboard then.
+let refP = null, refMod = null;
+function refs() {
+  refP ||= import('./ref.js').then((m) => {
+    m.init({ content, scroller, getCurrent: () => current, getGit: () => gitInfo, formattedText: () => viewerMod?.formattedText() ?? null });
+    refMod = m;
+    return m;
+  });
+  return refP;
+}
+/** The selection in the document, or null. */
+function selectionRange() {
+  const sel = getSelection();
+  if (!sel || sel.isCollapsed || !sel.rangeCount) return null;
+  const r = sel.getRangeAt(0);
+  return content.contains(r.commonAncestorContainer) ? r.cloneRange() : null;
+}
+/** Copies the reference to `range`, else to the spot at `el` (x, y), else to the top of the window. */
+async function copyReference(opts = {}) {
+  closeMenus();
+  if (!current) return;
+  const ref = (refMod || (await refs())).reference(opts);
+  if (!ref) { toast('There is nothing to reference here', 1600); return; }
+  if (!(await writeClipboard(ref.text))) { toast("Couldn't copy to the clipboard"); return; }
+  toast(`Copied reference · ${ref.label}`, 2200);
+}
 
 // ---------------------------------------------------------------- text, code & data files (lazy)
 let viewerP = null, viewerMod = null;
@@ -504,6 +541,7 @@ async function openFile(path, opts = {}) {
       updateActiveToc();
       document.body.dataset.ready = '1';
     });
+  if (!refP) setTimeout(refs, 1500); // Copy reference, ready for its shortcut
   window.__marklyRenderMs = performance.now() - t0;
   return true;
 }
@@ -640,6 +678,7 @@ const CTX_ICONS = {
   link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
   pin: '<path d="M9.5 3.5h5l-.8 5.6 3.3 3.4H7l3.3-3.4z"/><path d="M12 12.5V20"/>',
   highlight: '<path d="m14.5 5 4.5 4.5-7.5 7.5H7v-4.5z"/><path d="M4 20.5h16"/>',
+  ref: '<path d="M12 20.5s-6-5.4-6-10.5a6 6 0 0 1 12 0c0 5.1-6 10.5-6 10.5z"/><circle cx="12" cy="10" r="2.2"/>',
 };
 const shorten = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 /** The web address a selection consists of (adding https:// to "www." names), or null. */
@@ -686,8 +725,13 @@ document.addEventListener('contextmenu', (e) => {
   const inFile = current && !current.revision && e.target.closest('#mk-content') && !e.target.closest('.vw-bar');
   const at = (inFile && marksMod?.menuState(e.clientX, e.clientY)) || {};
   const groups = [[], [], []];
+  // Copy reference: also in an earlier version from the file history, not in the viewer's toolbar.
+  const canRef = current && e.target.closest('#mk-content') && !e.target.closest('.vw-bar');
+  const selRange = canRef && sel ? selectionRange() : null;
+  if (canRef) refs();
   if (sel) {
     groups[0].push({ icon: 'copy', label: 'Copy', run: () => copyText(sel, 'Copied') });
+    if (selRange) groups[0].push({ icon: 'ref', label: 'Copy reference', key: COPY_REF_KEY, run: () => copyReference({ range: selRange }) });
     if (selUrl) groups[0].push({ icon: 'open', label: 'Open in browser', sub: selUrl, run: () => openExternal(selUrl) });
     else groups[0].push({ icon: 'search', label: `Search Google for “${shorten(sel.replace(/\s+/g, ' '), 30)}”`, run: () => openExternal(SEARCH_URL + encodeURIComponent(sel.slice(0, 2000))) });
     if (at.selHighlight) groups[0].push({ icon: 'highlight', label: 'Remove highlight', run: () => marksMod.removeHighlight(at.selHighlight) });
@@ -699,6 +743,10 @@ document.addEventListener('contextmenu', (e) => {
   if (link && link !== selUrl) {
     groups[1].push({ icon: 'open', label: /^https?:/i.test(link) ? 'Open link in browser' : 'Open link', sub: link, run: () => openExternal(link) });
     groups[1].push({ icon: 'link', label: /^mailto:/i.test(link) ? 'Copy email address' : 'Copy link address', run: () => copyText(link.replace(/^mailto:/i, ''), 'Copied') });
+  }
+  if (canRef && !sel) {
+    const target = e.target, x = e.clientX, y = e.clientY;
+    groups[2].push({ icon: 'ref', label: 'Copy reference', key: COPY_REF_KEY, run: () => copyReference({ el: target, x, y }) });
   }
   if (inFile) {
     const target = e.target, y = e.clientY;
@@ -804,6 +852,8 @@ document.addEventListener('keydown', (e) => {
   let handled = true;
   if (mod && !e.shiftKey && k === 'o') pickAndOpen();
   else if (mod && e.shiftKey && !e.altKey && k === 'c') copyFromDoc('path');
+  // by key position, as Option changes the character on macOS; not while typing (AltGr is Ctrl+Alt)
+  else if (mod && e.altKey && !e.shiftKey && e.code === 'KeyC' && !e.target.closest?.('input, textarea, [contenteditable]')) copyReference({ range: selectionRange() });
   else if (mod && e.shiftKey && !e.altKey && k === 'e') toggleFiles(undefined, { focus: true });
   else if (mod && e.shiftKey && !e.altKey && k === 'h') toggleHistory();
   else if (mod && k === 'f') openFind();

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- **Copy reference**: copies where something is, to point an AI agent (or a person) at it: the file,
+  the lines in the file, the section and a quote, such as `docs/guide.md:42-45 (Install › Windows)`
+  followed by `> Run the setup file. …`. Select text, or right-click a paragraph, heading, list item,
+  table row or code line, and choose *Copy reference*; or press Ctrl+Alt+C (⌥⌘C on macOS), which
+  takes the selection or the top of the window. It is also in the Copy menu, where it shows what it
+  will copy. A selection inside a paragraph gives its own lines. Text and code files refer to their
+  lines too, also in the Formatted view (where the rows aren't the file's lines) and in CSV tables
+  (where a quoted cell can span lines). The path is relative to the Git repository for files tracked
+  in one, and an earlier version from the file history names its commit.
+
 ## 1.7.0 — 2026-11-15
 
 ### Added

@@ -92,26 +92,30 @@ function sniff(text) {
   }
   return best;
 }
+/** Parses CSV/TSV into rows of fields. `rows.lines[i]` is the file line (1-based) row i starts on,
+ *  for "Copy reference" (a quoted field can span lines). */
 export function parseCsv(text, sep) {
   const rows = [];
-  let row = [], f = '', q = false, i = 0;
+  rows.lines = [];
+  let row = [], f = '', q = false, i = 0, line = 1, start = 1;
   const s = text.replace(/^\ufeff/, '');
   while (i < s.length) {
     const c = s[i];
     if (q) {
       if (c === '"') { if (s[i + 1] === '"') { f += '"'; i += 2; continue; } q = false; i++; continue; }
+      if (c === '\n' || (c === '\r' && s[i + 1] !== '\n')) line++;
       f += c; i++; continue;
     }
     if (c === '"' && f === '') { q = true; i++; continue; }
     if (c === sep) { row.push(f); f = ''; i++; continue; }
     if (c === '\r' || c === '\n') {
-      row.push(f); f = ''; rows.push(row); row = [];
+      row.push(f); f = ''; rows.push(row); rows.lines.push(start); row = [];
       if (c === '\r' && s[i + 1] === '\n') i++;
-      i++; continue;
+      i++; start = ++line; continue;
     }
     f += c; i++;
   }
-  if (f !== '' || row.length) { row.push(f); rows.push(row); }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); rows.lines.push(start); }
   return rows;
 }
 const NUM = /^\s*[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)?(?:\.\d+)?(?:[eE][-+]?\d+)?\s*%?\s*$/;
@@ -140,12 +144,13 @@ function tableHtml(v) {
     const s = sort?.col === c ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none';
     return `<th aria-sort="${s}"><button type="button" class="vw-sort" data-col="${c}" title="Sort by this column">${esc(head[c] ?? '') || '&nbsp;'}<span class="vw-arrow"></span></button></th>`;
   }).join('');
-  const tr = body.map(({ r, i }) => `<tr><td class="vw-rn">${i + 1}</td>${Array.from({ length: cols }, (_, c) => {
+  const at = (i) => (rows.lines?.[i] ? ` data-line="${rows.lines[i]}"` : '');
+  const tr = body.map(({ r, i }) => `<tr${at(i + 1)}><td class="vw-rn">${i + 1}</td>${Array.from({ length: cols }, (_, c) => {
     const x = r[c] ?? '';
     return `<td${NUM.test(x) && x.trim() ? ' class="num"' : ''}>${ctx.linkifyUrls(esc(x))}</td>`;
   }).join('')}</tr>`).join('');
   const more = total > MAX_ROWS ? `<p class="vw-more">Showing the first ${MAX_ROWS.toLocaleString()} of ${total.toLocaleString()} rows. Switch to Raw to see everything.</p>` : '';
-  return `<div class="table-wrap vw-table-wrap"><table class="vw-table"><thead><tr><th class="vw-rn" aria-label="Row"></th>${th}</tr></thead><tbody>${tr}</tbody></table></div>${more}`;
+  return `<div class="table-wrap vw-table-wrap"><table class="vw-table"><thead><tr${at(0)}><th class="vw-rn" aria-label="Row"></th>${th}</tr></thead><tbody>${tr}</tbody></table></div>${more}`;
 }
 
 // ---------------------------------------------------------------- HTML preview

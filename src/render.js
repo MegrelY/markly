@@ -99,6 +99,23 @@ md.use(frontMatter, () => {})
     permalink: anchor.permalink.linkInsideHeader({ symbol: '#', placement: 'before', class: 'heading-anchor', ariaHidden: true }),
   });
 
+// --- Source lines: each block says which lines of the file it was rendered from (1-based, both ends
+// included), so "Copy reference" (ref.js) can point to them. A code block also says on which line its
+// code starts (data-code-line). The lines count from the very top of the file, front matter included.
+md.core.ruler.push('source_lines', (state) => {
+  for (const t of state.tokens) {
+    if (t.map && t.block && t.nesting >= 0 && t.type !== 'inline') {
+      t.attrSet('data-line', String(t.map[0] + 1));
+      t.attrSet('data-line-end', String(t.map[1]));
+    }
+  }
+});
+const lineAttrs = (t) => (t.map ? ` data-line="${t.map[0] + 1}" data-line-end="${t.map[1]}"` : '');
+// Callouts are rendered by their plugin, which leaves out a block's attributes.
+const alertOpen = md.renderer.rules.alert_open;
+md.renderer.rules.alert_open = (tokens, idx, opts, env, self) =>
+  alertOpen(tokens, idx, opts, env, self).replace('<div', `<div${lineAttrs(tokens[idx])}`);
+
 // --- Front matter: collapsible "properties" panel ---
 function fmValue(v) {
   if (v === null || v === undefined) return '<span class="fm-null">—</span>';
@@ -118,12 +135,12 @@ md.renderer.rules.front_matter = (tokens, idx) => {
     }
   } catch { /* fall through to raw */ }
   if (!body) body = `<pre class="fm-raw"><code>${esc(raw)}</code></pre>`;
-  return `<details class="front-matter"><summary>Properties</summary>${body}</details>\n`;
+  return `<details class="front-matter"${lineAttrs(tokens[idx])}><summary>Properties</summary>${body}</details>\n`;
 };
 
 // --- Tables: wrapped for horizontal scrolling. The outer box has no style of its own; with the
 // "Wide tables" page width it spans the room a table may take, so the table can centre in it. ---
-md.renderer.rules.table_open = () => '<div class="table-bleed"><div class="table-wrap"><table>\n';
+md.renderer.rules.table_open = (tokens, idx) => `<div class="table-bleed"><div class="table-wrap"><table${lineAttrs(tokens[idx])}>\n`;
 md.renderer.rules.table_close = () => '</table></div></div>\n';
 
 // --- Code fences: highlight.js, copy button, mermaid placeholder, ```math ---
@@ -137,9 +154,9 @@ md.renderer.rules.fence = (tokens, idx) => {
   const code = t.content;
   if (lang === 'mermaid') {
     // Source kept in a side table: DOMPurify drops attributes containing "-->".
-    return `<div class="mermaid-block" data-mmd="${sources.push(code) - 1}"><div class="mermaid-status">Rendering diagram…</div></div>\n`;
+    return `<div class="mermaid-block"${lineAttrs(t)} data-mmd="${sources.push(code) - 1}"><div class="mermaid-status">Rendering diagram…</div></div>\n`;
   }
-  if (lang === 'math' || lang === 'katex') return mathBlockHtml(code);
+  if (lang === 'math' || lang === 'katex') return mathBlockHtml(code, lineAttrs(t));
   const l = ALIAS[lang] || lang;
   let html, dir = 'ltr';
   if (l && HL_NAMES[l] !== 'plaintext' && hljs && hljs.getLanguage(l)) {
@@ -147,13 +164,14 @@ md.renderer.rules.fence = (tokens, idx) => {
     html = linkifyUrls(html);
   } else ({ html, dir } = plainCode(code));
   const label = lang || 'text';
-  return `<div class="code-block" dir="${dir}"><div class="code-head"><span class="code-lang">${esc(label)}</span>` +
+  return `<div class="code-block" dir="${dir}"${lineAttrs(t)}><div class="code-head"><span class="code-lang">${esc(label)}</span>` +
     `<button class="code-copy" type="button" aria-label="Copy code">Copy</button></div>` +
-    `<pre><code class="hljs${l ? ' language-' + esc(l) : ''}">${html}</code></pre></div>\n`;
+    `<pre><code class="hljs${l ? ' language-' + esc(l) : ''}"${t.map ? ` data-code-line="${t.map[0] + 2}"` : ''}>${html}</code></pre></div>\n`;
 };
 md.renderer.rules.code_block = (tokens, idx, opts, env, self) => {
   const { dir, html } = plainCode(tokens[idx].content);
-  return `<pre${self.renderAttrs(tokens[idx])} dir="${dir}"><code>${html}</code></pre>\n`;
+  const at = tokens[idx].map ? ` data-code-line="${tokens[idx].map[0] + 1}"` : '';
+  return `<pre${self.renderAttrs(tokens[idx])} dir="${dir}"><code${at}>${html}</code></pre>\n`;
 };
 md.renderer.rules.code_inline = (tokens, idx, opts, env, self) =>
   `<code${self.renderAttrs(tokens[idx])}>${linkifyUrls(esc(tokens[idx].content))}</code>`;
