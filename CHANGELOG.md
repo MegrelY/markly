@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.7.0 — 2026-11-15
 
 ### Added
 - **Page width** button in the toolbar (Ctrl+Shift+X; ⇧⌘X on macOS) that cycles through
